@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.sunflower.pinpic.presentation.common.LogoHeader
 import com.sunflower.pinpic.presentation.onboarding.IllustrationType
 import com.sunflower.pinpic.presentation.onboarding.OnboardingUiState
 
@@ -36,7 +37,7 @@ fun OnboardingPage(
         Spacer(Modifier.height(24.dp))
 
         if (page.illustration == IllustrationType.Camera) {
-            LogoHeader()
+            LogoHeader(textStyle = MaterialTheme.typography.displayMedium, imageHeight = 60.dp)
             Spacer(Modifier.height(12.dp))
         }
 

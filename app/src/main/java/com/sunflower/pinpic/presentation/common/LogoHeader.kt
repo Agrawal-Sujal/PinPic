@@ -1,4 +1,4 @@
-package com.sunflower.pinpic.presentation.onboarding.components
+package com.sunflower.pinpic.presentation.common
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -10,11 +10,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import com.sunflower.pinpic.R
 
 @Composable
-fun LogoHeader() {
+fun LogoHeader(textStyle: TextStyle,imageHeight: Dp) {
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -24,13 +26,19 @@ fun LogoHeader() {
         Image(
             painter = painterResource(R.drawable.app_logo),
             contentDescription = null,
-            modifier = Modifier.height(60.dp)
+            modifier = Modifier.height(imageHeight)
         )
-
         Text(
-            text = "PinPic",
-            style = MaterialTheme.typography.displayMedium,
+            text = "Pin",
+            fontWeight = FontWeight(800),
+            style = textStyle,
             color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = "Pic",
+            fontWeight = FontWeight(800),
+            style = textStyle,
+            color = MaterialTheme.colorScheme.secondary
         )
 
     }

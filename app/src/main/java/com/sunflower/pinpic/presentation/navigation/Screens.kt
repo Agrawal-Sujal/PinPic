@@ -23,4 +23,6 @@ sealed class Screen {
      * Nested nav (Map / Album / Chat) lives inside this destination.
      */
     data object Main : Screen()
+    data object SignUp: Screen()
+    data object UsernameSetup: Screen()
 }

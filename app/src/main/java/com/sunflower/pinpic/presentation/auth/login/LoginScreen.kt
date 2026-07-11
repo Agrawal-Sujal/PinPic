@@ -1,100 +1,225 @@
+@file:Suppress("DEPRECATION")
+
 package com.sunflower.pinpic.presentation.auth.login
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.*
+import androidx.compose.material3.ButtonDefaults.outlinedButtonBorder
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.sunflower.pinpic.presentation.auth.AuthSideEffect
+import com.sunflower.pinpic.presentation.auth.AuthUiEvent
+import com.sunflower.pinpic.presentation.auth.components.MapIllustration
 
-/**
- * LoginScreen — placeholder auth screen.
- *
- * FrontendRules.md Q1: No local chrome (TopAppBar / FAB) needed → no local Scaffold.
- *                       The nav-level Scaffold in AppNavDisplay already wraps this.
- * FrontendRules.md Q2: Single top-to-bottom flow → Column root.
- * FrontendRules.md Q3: Colors from MaterialTheme only.
- * FrontendRules.md Q4: No state branching yet (auth UI to be wired in a future task).
- */
 @Composable
-fun LoginScreen() {
-    Column(
+fun LoginScreen(
+    viewModel: LoginViewModel = hiltViewModel(),
+    onNavigateToSignUp: () -> Unit,
+    onNavigateToHome: () -> Unit,
+    onNavigateToUsernameSetup: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(key1 = true) {
+        viewModel.sideEffect.collect { effect ->
+            when (effect) {
+                AuthSideEffect.NavigateToSignUp -> onNavigateToSignUp()
+                AuthSideEffect.NavigateToHome -> onNavigateToHome()
+                AuthSideEffect.NavigateToUsernameSetup -> onNavigateToUsernameSetup()
+                else -> Unit
+            }
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 32.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .verticalScroll(rememberScrollState())
     ) {
-        // Logo badge — mirrors Splash for visual continuity.
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.primary,
-                    shape = CircleShape,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "P",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                ),
-                color = MaterialTheme.colorScheme.onPrimary,
-            )
-        }
+        MapIllustration()
 
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Text(
-            text = "Welcome to PinPic",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Sign in to start pinning your world.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Button(
-            onClick = { /* TODO: wire Firebase Auth sign-in */ },
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Spacer(modifier = Modifier.height(200.dp))
+
+//            LogoHeader(textStyle = MaterialTheme.typography.displayMedium, imageHeight = 60.dp)
+//
+//
+//            Text(
+//                text = "Pin your moments. Share your world.",
+//                style = MaterialTheme.typography.bodyMedium,
+//                color = MaterialTheme.colorScheme.onSurfaceVariant,
+//                modifier = Modifier.padding(top = 8.dp)
+//            )
+//
+            Spacer(modifier = Modifier.height(48.dp))
+
             Text(
-                text = "Sign in",
-                style = MaterialTheme.typography.titleMedium,
+                text = "Welcome Back!",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onBackground
             )
+
+            Text(
+                text = "Login to continue",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Text Entry Forms
+            OutlinedTextField(
+                value = uiState.emailText,
+                onValueChange = { viewModel.onEvent(AuthUiEvent.OnEmailChanged(it)) },
+                label = { Text("Email") },
+                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = uiState.passwordText,
+                onValueChange = { viewModel.onEvent(AuthUiEvent.OnPasswordChanged(it)) },
+                label = { Text("Password") },
+                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                trailingIcon = {
+                    val icon = if (uiState.isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                    IconButton(onClick = { viewModel.onEvent(AuthUiEvent.OnTogglePasswordVisibility) }) {
+                        Icon(icon, contentDescription = "Toggle password visibility")
+                    }
+                },
+                visualTransformation = if (uiState.isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            )
+
+            // Forgot Password Link Text
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Text(
+                    text = "Forgot Password?",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        viewModel.onEvent(AuthUiEvent.OnForgotPasswordClicked)
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Primary Interactive CTA Button Actions
+            Button(
+                onClick = { viewModel.onEvent(AuthUiEvent.OnLoginClicked) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                enabled = !uiState.isLoading
+            ) {
+                if (uiState.isLoading) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
+                } else {
+                    Text(text = "Login", style = MaterialTheme.typography.titleMedium)
+                }
+            }
+
+            // Mid-Section Alternative Providers Header Break Lines
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.surfaceVariant)
+                Text(
+                    text = "or",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.surfaceVariant)
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Secondary Outlined Provider Button Actions
+            OutlinedButton(
+                onClick = { viewModel.onEvent(AuthUiEvent.OnGoogleAuthClicked(context)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onBackground
+                ),
+                border = outlinedButtonBorder.copy(
+                    brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.surfaceVariant)
+                )
+            ) {
+                Text(text = "Login with Google", style = MaterialTheme.typography.titleMedium)
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Redirection Navigation Options Footer
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "Don’t have an account? ", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = "Sign Up",
+                    color = MaterialTheme.colorScheme.secondary,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.clickable { viewModel.onEvent(AuthUiEvent.OnSignUpClicked) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

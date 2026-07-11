@@ -11,4 +11,6 @@ sealed interface SplashSideEffect {
     data object NavigateToMain : SplashSideEffect
 
     data object NavigationToOnboarding: SplashSideEffect
+    
+    data object NavigateToUsernameSetup: SplashSideEffect
 }

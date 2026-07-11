@@ -29,8 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.sunflower.pinpic.R
-import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlin.time.Duration.Companion.milliseconds
@@ -47,8 +47,9 @@ import kotlin.time.Duration.Companion.milliseconds
 fun SplashScreen(
     onNavigateToLogin: () -> Unit,
     onNavigateToMain: () -> Unit,
-    onNavigateToOnBoarding:()->Unit,
-    viewModel: SplashViewModel = viewModel()
+    onNavigateToOnBoarding: () -> Unit,
+    onNavigateToUsernameSetup: () -> Unit,
+    viewModel: SplashViewModel = hiltViewModel()
 ) {
     LaunchedEffect(Unit) {
         viewModel.sideEffect.collectLatest { effect ->
@@ -57,6 +58,7 @@ fun SplashScreen(
                 SplashSideEffect.NavigateToLogin -> onNavigateToLogin()
                 SplashSideEffect.NavigateToMain -> onNavigateToMain()
                 SplashSideEffect.NavigationToOnboarding -> onNavigateToOnBoarding()
+                SplashSideEffect.NavigateToUsernameSetup -> onNavigateToUsernameSetup()
             }
         }
     }
