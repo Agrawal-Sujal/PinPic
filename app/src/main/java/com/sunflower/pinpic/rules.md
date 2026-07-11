@@ -196,3 +196,4 @@ class PlacesRepositoryImpl @Inject constructor(
 - **UseCase → Repository:** UseCase depends on the Repository *interface*, never the impl — enables easy testing with fakes/mocks.
 - **State flows one way up:** ViewModel → UI via `StateFlow`. UI never mutates state directly, only triggers events.
 - **One-time actions (navigation, snackbar) never live in `UiState`** — use a `Channel`/`SharedFlow`-based `SideEffect` instead, to avoid re-triggering on recomposition/rotation.
+- Implement Navigation 3 (NavDisplay)
