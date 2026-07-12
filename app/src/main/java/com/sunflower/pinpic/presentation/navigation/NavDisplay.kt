@@ -73,7 +73,7 @@ fun AppNavDisplay() {
                     })
                 }
                 entry<Screen.Main> {
-
+                    com.sunflower.pinpic.presentation.main.MainScreen()
                 }
 
                 entry<Screen.Login> {
