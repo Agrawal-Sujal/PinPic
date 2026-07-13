@@ -47,6 +47,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.sunflower.pinpic.presentation.gallery.GalleryScreen
+
 
 enum class MainTab(val icon: ImageVector, val filledIcon: ImageVector, val label: String) {
     Map(Icons.Outlined.LocationOn, Icons.Filled.LocationOn, "Map"),
@@ -56,17 +58,22 @@ enum class MainTab(val icon: ImageVector, val filledIcon: ImageVector, val label
 }
 
 @Composable
-fun MainScreen() {
-    var currentTab by remember { mutableStateOf(MainTab.Map) }
+fun MainScreen(
+    onNavigateToCamera: () -> Unit
+) {
+    var currentTab by remember { mutableStateOf(MainTab.Gallery) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 16.dp)
+                .padding(vertical = 16.dp),
             contentAlignment = Alignment.Center
         ) {
             when (currentTab) {
                 MainTab.Map -> DummyScreen("Map Screen")
-                MainTab.Gallery -> DummyScreen("Gallery Screen")
+                MainTab.Gallery -> GalleryScreen()
                 MainTab.Chat -> DummyScreen("Chat Screen")
                 MainTab.Profile -> DummyScreen("Profile Screen")
             }
@@ -76,7 +83,7 @@ fun MainScreen() {
             CustomFloatingBottomNavigation(
                 currentTab = currentTab,
                 onTabSelected = { currentTab = it },
-                onCameraClick = { /* No-op */ }
+                onCameraClick = onNavigateToCamera
             )
         }
     }
@@ -92,7 +99,7 @@ fun CustomFloatingBottomNavigation(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
-            .padding(bottom = 24.dp)
+            .padding(bottom = 8.dp)
             .height(96.dp)
     ) {
         // Curved background bar using your theme colors

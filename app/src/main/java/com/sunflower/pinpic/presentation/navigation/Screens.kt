@@ -25,4 +25,5 @@ sealed class Screen {
     data object Main : Screen()
     data object SignUp: Screen()
     data object UsernameSetup: Screen()
+    data object Camera : Screen()
 }

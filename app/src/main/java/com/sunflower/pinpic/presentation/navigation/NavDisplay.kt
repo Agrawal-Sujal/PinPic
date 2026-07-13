@@ -18,6 +18,8 @@ import com.sunflower.pinpic.presentation.common.SnackbarController
 import com.sunflower.pinpic.presentation.onboarding.OnboardingScreen
 import com.sunflower.pinpic.presentation.splash.SplashScreen
 import com.sunflower.pinpic.presentation.auth.username.UsernameScreen
+import com.sunflower.pinpic.presentation.camera.CameraScreen
+import com.sunflower.pinpic.presentation.main.MainScreen
 
 @Composable
 fun AppNavDisplay() {
@@ -73,7 +75,19 @@ fun AppNavDisplay() {
                     })
                 }
                 entry<Screen.Main> {
-                    com.sunflower.pinpic.presentation.main.MainScreen()
+                    MainScreen(
+                        onNavigateToCamera = {
+                            backStack.add(Screen.Camera)
+                        }
+                    )
+                }
+                
+                entry<Screen.Camera> {
+                    CameraScreen(
+                        onClose = {
+                            backStack.removeLastOrNull()
+                        }
+                    )
                 }
 
                 entry<Screen.Login> {
