@@ -8,4 +8,5 @@ interface PhotosRepository {
     suspend fun savePhoto(photo: Photo): Result<Unit>
     suspend fun getAllPhotos(): Result<List<Photo>>
     fun getAllPhotosFlow(): Flow<Result<List<Photo>>>
+    suspend fun deletePhotos(photos: List<Photo>): Result<Unit>
 }

@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.media.MediaActionSound
 import android.os.Environment
 import android.util.Log
-import android.util.Size
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -15,8 +14,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.resolutionselector.ResolutionSelector
-import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.video.FileOutputOptions
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoRecordEvent
@@ -24,6 +21,7 @@ import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
 import androidx.camera.view.video.AudioConfig
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -42,11 +40,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import coil.transform.CircleCropTransformation
-import coil.transform.RoundedCornersTransformation
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.RoundedCornerShape
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -60,7 +55,6 @@ fun CameraScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Check permissions initially
     var hasPermissions by remember {
         mutableStateOf(
             hasRequiredPermissions(context)
@@ -121,6 +115,7 @@ fun CameraScreen(
     var isRecording by remember { mutableStateOf(false) }
     var recording: Recording? by remember { mutableStateOf(null) }
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
+    var showFullScreenPreview by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
@@ -220,6 +215,7 @@ fun CameraScreen(
                     modifier = Modifier
                         .size(56.dp)
                         .clip(CircleShape)
+                        .clickable { showFullScreenPreview = true }
                 )
             } else {
                 Spacer(modifier = Modifier.size(56.dp))
@@ -293,6 +289,42 @@ fun CameraScreen(
                 contentColor = if (isRecording) Color.White else Color.Black
             ) {
                 Icon(Icons.Filled.Videocam, contentDescription = "Record Video")
+            }
+        }
+    }
+
+    if (showFullScreenPreview && latestPhotoUri != null) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showFullScreenPreview = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+            ) {
+                AsyncImage(
+                    model = latestPhotoUri,
+                    contentDescription = "Full Screen Photo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                IconButton(
+                    onClick = { showFullScreenPreview = false },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(top = 32.dp, start = 16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = Color.White
+                    )
+                }
             }
         }
     }

@@ -41,4 +41,22 @@ class PhotosRepositoryImpl @Inject constructor(
             emit(Result.Error(e.message ?: "Unknown error"))
         }
     }
+
+    override suspend fun deletePhotos(photos: List<Photo>): Result<Unit> {
+        return try {
+            dao.deletePhotos(photos.map { it.toEntity() })
+            // Delete actual files
+            photos.forEach { photo ->
+                photo.uri?.let { uriString ->
+                    val file = java.io.File(uriString)
+                    if (file.exists()) {
+                        file.delete()
+                    }
+                }
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Unknown error")
+        }
+    }
 }

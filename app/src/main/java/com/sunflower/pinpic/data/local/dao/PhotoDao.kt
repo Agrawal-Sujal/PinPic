@@ -18,4 +18,7 @@ interface PhotoDao {
 
     @Query("SELECT * FROM photos ORDER BY id DESC")
     fun getAllPhotosFlow(): Flow<List<PhotoEntity>>
+
+    @androidx.room.Delete
+    suspend fun deletePhotos(photos: List<PhotoEntity>)
 }

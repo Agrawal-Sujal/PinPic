@@ -64,4 +64,10 @@ class GalleryViewModel @Inject constructor(
         }
         _uiState.value = _uiState.value.copy(expandedDates = newExpanded)
     }
+
+    fun deletePhotos(photos: List<Photo>) {
+        viewModelScope.launch {
+            photosRepository.deletePhotos(photos)
+        }
+    }
 }
