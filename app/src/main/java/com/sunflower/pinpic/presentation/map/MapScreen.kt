@@ -105,10 +105,7 @@ fun MapScreen(
         modifier = modifier.fillMaxSize(),
         cameraPositionState = cameraPositionState,
         properties = mapProperties,
-        onMapLoaded = { reportCamera(cameraPositionState, viewModel) },
-        onMapClick = { latLng ->
-            viewModel.addDummyPhoto(latLng.latitude, latLng.longitude)
-        }
+        onMapLoaded = { reportCamera(cameraPositionState, viewModel) }
     ) {
         reportCamera(cameraPositionState, viewModel)
 

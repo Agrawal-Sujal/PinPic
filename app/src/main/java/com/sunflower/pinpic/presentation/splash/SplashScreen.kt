@@ -51,14 +51,17 @@ fun SplashScreen(
     onNavigateToUsernameSetup: () -> Unit,
     viewModel: SplashViewModel = hiltViewModel()
 ) {
+
     LaunchedEffect(Unit) {
         viewModel.sideEffect.collectLatest { effect ->
-            delay(2500.milliseconds)
-            when (effect) {
-                SplashSideEffect.NavigateToLogin -> onNavigateToLogin()
-                SplashSideEffect.NavigateToMain -> onNavigateToMain()
-                SplashSideEffect.NavigationToOnboarding -> onNavigateToOnBoarding()
-                SplashSideEffect.NavigateToUsernameSetup -> onNavigateToUsernameSetup()
+            if (effect != null) {
+                delay(1500.milliseconds)
+                when (effect) {
+                    SplashSideEffect.NavigateToLogin -> onNavigateToLogin()
+                    SplashSideEffect.NavigateToMain -> onNavigateToMain()
+                    SplashSideEffect.NavigationToOnboarding -> onNavigateToOnBoarding()
+                    SplashSideEffect.NavigateToUsernameSetup -> onNavigateToUsernameSetup()
+                }
             }
         }
     }

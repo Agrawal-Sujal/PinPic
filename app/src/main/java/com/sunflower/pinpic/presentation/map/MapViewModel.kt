@@ -210,19 +210,4 @@ class MapViewModel @Inject constructor(
             payload = this
         )
     }
-
-    fun addDummyPhoto(lat: Double, lng: Double) {
-        viewModelScope.launch {
-            val dummyPhoto = Photo(
-                lat = lat,
-                lng = lng,
-                date = null,
-                time = null,
-                locationName = "Map Click",
-                uri = null,
-                url = null
-            )
-            photosRepository.savePhoto(dummyPhoto)
-        }
-    }
 }

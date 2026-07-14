@@ -40,11 +40,6 @@ fun GalleryScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Trigger load on compose (already done in init, but keeping it for completeness if needed)
-//    LaunchedEffect(Unit) {
-//        viewModel.loadPhotos()
-//    }
-
     if (uiState.isLoading && uiState.photosGroupedByDate.isEmpty()) {
         Box(
             modifier = modifier
@@ -108,20 +103,20 @@ fun GalleryContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = "Search",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(28.dp)
-                )
-                Icon(
-                    imageVector = Icons.Outlined.Tune,
-                    contentDescription = "Filter",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
+//            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+//                Icon(
+//                    imageVector = Icons.Outlined.Search,
+//                    contentDescription = "Search",
+//                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+//                    modifier = Modifier.size(28.dp)
+//                )
+//                Icon(
+//                    imageVector = Icons.Outlined.Tune,
+//                    contentDescription = "Filter",
+//                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+//                    modifier = Modifier.size(28.dp)
+//                )
+//            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -191,7 +186,7 @@ fun GalleryTabs() {
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(scrollState),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         tabs.forEachIndexed { index, tab ->
             val isSelected = selectedTabIndex == index
@@ -205,7 +200,7 @@ fun GalleryTabs() {
                         shape = RoundedCornerShape(12.dp)
                     )
                     .clickable { selectedTabIndex = index }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -218,7 +213,7 @@ fun GalleryTabs() {
                 Text(
                     text = tab.first,
                     color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = if (isSelected) MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold) else MaterialTheme.typography.bodyMedium
+                    style = if (isSelected) MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold) else MaterialTheme.typography.bodySmall
                 )
             }
         }

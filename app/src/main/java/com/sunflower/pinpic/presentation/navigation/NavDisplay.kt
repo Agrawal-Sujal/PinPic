@@ -23,7 +23,7 @@ import com.sunflower.pinpic.presentation.main.MainScreen
 
 @Composable
 fun AppNavDisplay() {
-    val backStack = remember { mutableStateListOf<Screen>() }
+    val backStack = remember { mutableStateListOf<Screen>(Screen.Splash) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
@@ -31,8 +31,6 @@ fun AppNavDisplay() {
             snackbarHostState.showSnackbar(message = message)
         }
     }
-
-    backStack.add(Screen.Splash)
 
     // The one Scaffold for the whole app.
     // bottomBar is hidden on Splash and Login — those screens have no bottom nav.

@@ -35,19 +35,21 @@ class GalleryViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             
-            when (val result = photosRepository.getAllPhotos()) {
-                is Result.Success -> {
-                    val grouped = result.data.groupBy { it.date ?: "Unknown Date" }
-                    _uiState.value = _uiState.value.copy(
-                        photosGroupedByDate = grouped,
-                        isLoading = false
-                    )
-                }
-                is Result.Error -> {
-                    _uiState.value = _uiState.value.copy(
-                        errorMessage = result.message,
-                        isLoading = false
-                    )
+            photosRepository.getAllPhotosFlow().collect { result ->
+                when (result) {
+                    is Result.Success -> {
+                        val grouped = result.data.groupBy { it.date ?: "Unknown Date" }
+                        _uiState.value = _uiState.value.copy(
+                            photosGroupedByDate = grouped,
+                            isLoading = false
+                        )
+                    }
+                    is Result.Error -> {
+                        _uiState.value = _uiState.value.copy(
+                            errorMessage = result.message,
+                            isLoading = false
+                        )
+                    }
                 }
             }
         }
