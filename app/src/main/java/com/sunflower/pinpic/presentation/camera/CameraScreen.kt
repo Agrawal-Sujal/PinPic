@@ -4,8 +4,10 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.MediaActionSound
 import android.os.Environment
 import android.util.Log
+import android.util.Size
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -13,6 +15,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.video.FileOutputOptions
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoRecordEvent
@@ -35,8 +39,14 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.transform.CircleCropTransformation
+import coil.transform.RoundedCornersTransformation
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -49,7 +59,6 @@ fun CameraScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
     // Check permissions initially
     var hasPermissions by remember {
@@ -57,11 +66,25 @@ fun CameraScreen(
             hasRequiredPermissions(context)
         )
     }
+    val shutterSound = remember { MediaActionSound() }
+
+    DisposableEffect(Unit) {
+        shutterSound.load(MediaActionSound.SHUTTER_CLICK)
+        onDispose { shutterSound.release() }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         hasPermissions = permissions.entries.all { it.value }
+    }
+
+    val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
+    val latestPhotoUri by viewModel.latestPhotoUri.collectAsStateWithLifecycle()
+
+
+    LaunchedEffect(Unit) {
+        if (hasPermissions) viewModel.startLocationUpdates()
     }
 
     LaunchedEffect(Unit) {
@@ -91,6 +114,7 @@ fun CameraScreen(
                         LifecycleCameraController.VIDEO_CAPTURE
             )
             imageCaptureMode = ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
+            imageCaptureFlashMode = ImageCapture.FLASH_MODE_OFF
         }
     }
 
@@ -133,16 +157,21 @@ fun CameraScreen(
             // Switch Camera
             IconButton(
                 onClick = {
-                    cameraController.cameraSelector = if (cameraController.cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
-                        CameraSelector.DEFAULT_FRONT_CAMERA
-                    } else {
-                        CameraSelector.DEFAULT_BACK_CAMERA
-                    }
+                    cameraController.cameraSelector =
+                        if (cameraController.cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+                            CameraSelector.DEFAULT_FRONT_CAMERA
+                        } else {
+                            CameraSelector.DEFAULT_BACK_CAMERA
+                        }
                 },
                 modifier = Modifier
                     .background(Color.Black.copy(alpha = 0.5f), CircleShape)
             ) {
-                Icon(Icons.Filled.Cameraswitch, contentDescription = "Switch Camera", tint = Color.White)
+                Icon(
+                    Icons.Filled.Cameraswitch,
+                    contentDescription = "Switch Camera",
+                    tint = Color.White
+                )
             }
 
             // Zoom In
@@ -179,15 +208,53 @@ fun CameraScreen(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Thumbnail
+            if (latestPhotoUri != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(latestPhotoUri)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Latest Photo",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                )
+            } else {
+                Spacer(modifier = Modifier.size(56.dp))
+            }
+
             // Photo Button
             FloatingActionButton(
                 onClick = {
-                    takePhoto(context, cameraController, mainExecutor, fusedLocationClient, viewModel)
+                    if (viewModel.startSaving()) {
+                        takePhoto(
+                            context = context,
+                            controller = cameraController,
+                            executor = mainExecutor,
+                            onPhotoSaved = { uri ->
+                                viewModel.onPhotoCaptured(uri)
+                            },
+                            onError = {
+                                viewModel.stopSaving()
+                            }
+                        )
+                        shutterSound.play(MediaActionSound.SHUTTER_CLICK)
+                    }
                 },
-                containerColor = Color.White,
+                containerColor = if (isSaving) Color.Gray else Color.White,
                 contentColor = Color.Black
             ) {
-                Icon(Icons.Filled.PhotoCamera, contentDescription = "Take Photo")
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.Black,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(Icons.Filled.PhotoCamera, contentDescription = "Take Photo")
+                }
             }
 
             // Video Button
@@ -201,12 +268,21 @@ fun CameraScreen(
                                 is VideoRecordEvent.Start -> {
                                     isRecording = true
                                 }
+
                                 is VideoRecordEvent.Finalize -> {
                                     isRecording = false
                                     if (!event.hasError()) {
-                                        Toast.makeText(context, "Video saved successfully", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(
+                                            context,
+                                            "Video saved successfully",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
                                     } else {
-                                        Toast.makeText(context, "Video error: ${event.error}", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(
+                                            context,
+                                            "Video error: ${event.error}",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
                                     }
                                 }
                             }
@@ -241,17 +317,21 @@ private fun hasRequiredPermissions(context: Context): Boolean {
             ) == PackageManager.PERMISSION_GRANTED
 }
 
-@SuppressLint("MissingPermission")
 private fun takePhoto(
     context: Context,
     controller: LifecycleCameraController,
     executor: Executor,
-    fusedLocationClient: FusedLocationProviderClient,
-    viewModel: CameraViewModel
+    onPhotoSaved: (String) -> Unit,
+    onError: (ImageCaptureException) -> Unit
 ) {
     val photoFile = File(
         context.getExternalFilesDir(Environment.DIRECTORY_PICTURES),
-        "PinPic-${SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US).format(System.currentTimeMillis())}.jpg"
+        "PinPic-${
+            SimpleDateFormat(
+                "yyyy-MM-dd-HH-mm-ss-SSS",
+                Locale.US
+            ).format(System.currentTimeMillis())
+        }.jpg"
     )
     val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
@@ -261,18 +341,13 @@ private fun takePhoto(
         object : ImageCapture.OnImageSavedCallback {
             override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                 Toast.makeText(context, "Photo saved successfully", Toast.LENGTH_SHORT).show()
-                fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                    val lat = location?.latitude ?: 0.0
-                    val lng = location?.longitude ?: 0.0
-                    viewModel.onPhotoCaptured(photoFile.absolutePath, lat, lng)
-                }.addOnFailureListener {
-                    viewModel.onPhotoCaptured(photoFile.absolutePath, 0.0, 0.0)
-                }
+                onPhotoSaved(photoFile.absolutePath)
             }
 
             override fun onError(exception: ImageCaptureException) {
                 Log.e("CameraScreen", "Photo capture failed: ${exception.message}", exception)
                 Toast.makeText(context, "Photo capture failed", Toast.LENGTH_SHORT).show()
+                onError(exception)
             }
         }
     )
@@ -287,7 +362,12 @@ private fun recordVideo(
 ): Recording {
     val videoFile = File(
         context.getExternalFilesDir(Environment.DIRECTORY_MOVIES),
-        "PinPic-${SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US).format(System.currentTimeMillis())}.mp4"
+        "PinPic-${
+            SimpleDateFormat(
+                "yyyy-MM-dd-HH-mm-ss-SSS",
+                Locale.US
+            ).format(System.currentTimeMillis())
+        }.mp4"
     )
     val outputOptions = FileOutputOptions.Builder(videoFile).build()
 
