@@ -85,6 +85,9 @@ fun GalleryContent(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 16.dp)
+            .padding(vertical = 16.dp)
     ) {
         // Top Bar
         Row(

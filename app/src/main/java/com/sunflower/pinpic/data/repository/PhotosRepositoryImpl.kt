@@ -3,9 +3,13 @@ package com.sunflower.pinpic.data.repository
 import com.sunflower.pinpic.data.local.dao.PhotoDao
 import com.sunflower.pinpic.data.mapper.toDomain
 import com.sunflower.pinpic.data.mapper.toEntity
+import com.sunflower.pinpic.data.local.entity.PhotoEntity
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.domain.repository.PhotosRepository
 import com.sunflower.pinpic.common.Result
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class PhotosRepositoryImpl @Inject constructor(
@@ -27,6 +31,14 @@ class PhotosRepositoryImpl @Inject constructor(
             Result.Success(photos)
         } catch (e: Exception) {
             Result.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    override fun getAllPhotosFlow(): Flow<Result<List<Photo>>> {
+        return dao.getAllPhotosFlow().map<List<PhotoEntity>, Result<List<Photo>>> { entities ->
+            Result.Success(entities.map { it.toDomain() })
+        }.catch { e ->
+            emit(Result.Error(e.message ?: "Unknown error"))
         }
     }
 }

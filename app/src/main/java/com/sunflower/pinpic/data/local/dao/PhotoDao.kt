@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.sunflower.pinpic.data.local.entity.PhotoEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PhotoDao {
@@ -14,4 +15,7 @@ interface PhotoDao {
 
     @Query("SELECT * FROM photos ORDER BY id DESC")
     suspend fun getAllPhotos(): List<PhotoEntity>
+
+    @Query("SELECT * FROM photos ORDER BY id DESC")
+    fun getAllPhotosFlow(): Flow<List<PhotoEntity>>
 }
