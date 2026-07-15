@@ -26,6 +26,15 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.TextButton
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -40,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
@@ -47,6 +57,7 @@ import com.google.maps.android.compose.CameraPositionState
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.CameraMoveStartedReason
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
 import com.sunflower.pinpic.R
@@ -62,14 +73,15 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.LocationManager
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.core.content.ContextCompat
-import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 
 private const val MARKER_CHUNK_SIZE = 10
 private const val MARKER_CHUNK_DELAY_MS = 32L
@@ -115,7 +127,7 @@ fun MapScreen(
     var expandedLocations by remember { mutableStateOf(emptySet<String>()) }
     var selectedMenuNode by remember { mutableStateOf<ClusterNode?>(null) }
     val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-    
+
     val bottomSheetUiState = remember(bottomSheetPhotos, expandedDates, expandedLocations) {
         val byDate = bottomSheetPhotos.groupBy { it.date ?: "Unknown Date" }
         val byLoc = bottomSheetPhotos.groupBy { it.locationName ?: "Unknown Location" }
@@ -126,6 +138,21 @@ fun MapScreen(
             expandedLocations = expandedLocations,
             isLoading = false
         )
+    }
+
+    var longPressedLocation by remember { mutableStateOf<LatLng?>(null) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var pendingUris by remember { mutableStateOf<List<android.net.Uri>>(emptyList()) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            pendingUris = uris
+            showDatePicker = true
+        } else {
+            longPressedLocation = null
+        }
     }
 
     LaunchedEffect(uiState.visibleNodes) {
@@ -156,19 +183,34 @@ fun MapScreen(
         val location = try {
             locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
                 ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        } catch (_: SecurityException) { null }
-        
+        } catch (_: SecurityException) {
+            null
+        }
+
         location?.let { loc ->
             coroutineScope.launch {
-                cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(loc.latitude, loc.longitude), 15f))
+                cameraPositionState.animate(
+                    CameraUpdateFactory.newLatLngZoom(
+                        LatLng(
+                            loc.latitude,
+                            loc.longitude
+                        ), 15f
+                    )
+                )
             }
         }
     }
 
     var hasLocationPermission by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED ||
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
         )
     }
 
@@ -182,8 +224,9 @@ fun MapScreen(
     }
 
     LaunchedEffect(cameraPositionState.isMoving) {
-        if (cameraPositionState.isMoving) {
+        if (cameraPositionState.isMoving && cameraPositionState.cameraMoveStartedReason == CameraMoveStartedReason.GESTURE) {
             selectedMenuNode = null
+            longPressedLocation = null
         }
     }
 
@@ -202,6 +245,8 @@ fun MapScreen(
         )
     }
 
+
+
     Box(modifier = Modifier.fillMaxSize()) {
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
@@ -209,117 +254,187 @@ fun MapScreen(
             properties = mapProperties,
             uiSettings = mapUiSettings,
             onMapLoaded = { reportCamera(cameraPositionState, viewModel) },
-            onMapClick = { selectedMenuNode = null }
+            onMapClick = {
+                selectedMenuNode = null
+                longPressedLocation = null
+            },
+            onMapLongClick = { latLng ->
+                coroutineScope.launch {
+//                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+                    longPressedLocation = latLng
+                }
+            }
         ) {
             reportCamera(cameraPositionState, viewModel)
 
-        renderedNodes.forEach { node ->
-            key(node.id) {
+            renderedNodes.forEach { node ->
+                key(node.id) {
+                    Marker(
+                        state = rememberMarkerState(position = LatLng(node.lat, node.lon)),
+                        icon = if (node.count > 1) iconFactory.cluster(node.count) else iconFactory.point(),
+                        anchor = Offset(0.5f, 0.5f),
+                        flat = true,
+                        onClick = {
+                            selectedMenuNode = node
+                            true
+                        }
+                    )
+                }
+            }
+
+            longPressedLocation?.let { latLng ->
+                val markerState = rememberMarkerState(position = latLng)
+                markerState.position = latLng
                 Marker(
-                    state = rememberMarkerState(position = LatLng(node.lat, node.lon)),
-                    icon = if (node.count > 1) iconFactory.cluster(node.count) else iconFactory.point(),
-                    anchor = Offset(0.5f, 0.5f),
-                    flat = true,
-                    onClick = {
-                        selectedMenuNode = node
-//                        if (node.count > 1) {
-//                            cameraPositionState.position = CameraPosition.fromLatLngZoom(
-//                                LatLng(node.lat, node.lon),
-//                                cameraPositionState.position.zoom + 2f
-//                            )
-//                        }
-                        true
-                    }
+                    state = markerState,
+                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
                 )
             }
         }
-    }
-    
-    FloatingActionButton(
-        onClick = {
-            val hasPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-                          ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-            hasLocationPermission = hasPerm
-            
-            if (hasPerm) {
-                moveToCurrentLocation()
-            } else {
-                locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-            }
-        },
-        modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .padding(bottom = 120.dp, end = 16.dp),
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.primary,
-        shape = CircleShape
-    ) {
-        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.MyLocation, contentDescription = "Current Location")
-    }
-    
-    if (selectedMenuNode != null) {
-        val node = selectedMenuNode!!
-        var popupSize by remember { mutableStateOf(IntSize.Zero) }
-        
-        Box(
+
+        FloatingActionButton(
+            onClick = {
+                val hasPerm = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED ||
+                        ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+                hasLocationPermission = hasPerm
+
+                if (hasPerm) {
+                    moveToCurrentLocation()
+                } else {
+                    locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+            },
             modifier = Modifier
-                .offset {
-                    val projection = cameraPositionState.projection
-                    val point = projection?.toScreenLocation(LatLng(node.lat, node.lon))
-                    if (point != null) {
-                        IntOffset(
-                            x = point.x - (popupSize.width / 2),
-                            y = point.y - popupSize.height - 50
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 120.dp, end = 16.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary,
+            shape = CircleShape
+        ) {
+            Icon(Icons.Filled.MyLocation, contentDescription = "Current Location")
+        }
+
+        if (selectedMenuNode != null) {
+            val node = selectedMenuNode!!
+            var popupSize by remember { mutableStateOf(IntSize.Zero) }
+
+            Box(
+                modifier = Modifier
+                    .offset {
+                        val projection = cameraPositionState.projection
+                        val point = projection?.toScreenLocation(LatLng(node.lat, node.lon))
+                        if (point != null) {
+                            IntOffset(
+                                x = point.x - (popupSize.width / 2),
+                                y = point.y - popupSize.height - 50
+                            )
+                        } else {
+                            IntOffset.Zero
+                        }
+                    }
+                    .onGloballyPositioned { coordinates ->
+                        popupSize = coordinates.size
+                    }
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    shadowElevation = 8.dp,
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Column(modifier = Modifier
+                        .width(IntrinsicSize.Max)
+                        .padding(vertical = 8.dp)) {
+                        Text(
+                            text = "Zoom",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    cameraPositionState.position = CameraPosition.fromLatLngZoom(
+                                        LatLng(node.lat, node.lon),
+                                        cameraPositionState.position.zoom + 2f
+                                    )
+                                    selectedMenuNode = null
+                                }
+                                .padding(horizontal = 24.dp, vertical = 10.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelLarge
                         )
-                    } else {
-                        IntOffset.Zero
+                        Text(
+                            text = "View photos",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    coroutineScope.launch {
+                                        bottomSheetPhotos = viewModel.getPhotosForNode(node.id)
+                                        showBottomSheet = true
+                                    }
+                                    selectedMenuNode = null
+                                }
+                                .padding(horizontal = 24.dp, vertical = 10.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelLarge
+                        )
                     }
                 }
-                .onGloballyPositioned { coordinates ->
-                    popupSize = coordinates.size
-                }
-        ) {
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                shadowElevation = 8.dp,
-                color = MaterialTheme.colorScheme.surface
+            }
+        }
+
+        if (longPressedLocation != null && !showDatePicker) {
+            val latLng = longPressedLocation!!
+            var popupSize by remember { mutableStateOf(IntSize.Zero) }
+
+            Box(
+                modifier = Modifier
+                    .offset {
+                        val projection = cameraPositionState.projection
+                        val point = projection?.toScreenLocation(latLng)
+                        if (point != null) {
+                            IntOffset(
+                                x = point.x - (popupSize.width / 2),
+                                y = point.y - popupSize.height - 100
+                            )
+                        } else {
+                            IntOffset.Zero
+                        }
+                    }
+                    .onGloballyPositioned { coordinates ->
+                        popupSize = coordinates.size
+                    }
             ) {
-                Column(modifier = Modifier.width(IntrinsicSize.Max).padding(vertical = 8.dp)) {
-                    Text(
-                        text = "Zoom",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                cameraPositionState.position = CameraPosition.fromLatLngZoom(
-                                    LatLng(node.lat, node.lon),
-                                    cameraPositionState.position.zoom + 2f
-                                )
-                                selectedMenuNode = null
-                            }
-                            .padding(horizontal = 24.dp, vertical = 10.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                    Text(
-                        text = "View photos",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                coroutineScope.launch {
-                                    bottomSheetPhotos = viewModel.getPhotosForNode(node.id)
-                                    showBottomSheet = true
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    shadowElevation = 8.dp,
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Column(modifier = Modifier
+                        .width(IntrinsicSize.Max)
+                        .padding(vertical = 8.dp)) {
+                        Text(
+                            text = "Add image",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    photoPickerLauncher.launch(
+                                        PickVisualMediaRequest(
+                                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                                        )
+                                    )
                                 }
-                                selectedMenuNode = null
-                            }
-                            .padding(horizontal = 24.dp, vertical = 10.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelLarge
-                    )
+                                .padding(horizontal = 24.dp, vertical = 10.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
                 }
             }
         }
     }
-}
 
     if (showBottomSheet) {
         ModalBottomSheet(
@@ -329,10 +444,12 @@ fun MapScreen(
             GalleryContent(
                 uiState = bottomSheetUiState,
                 onToggleDate = { date ->
-                    expandedDates = if (expandedDates.contains(date)) expandedDates - date else expandedDates + date
+                    expandedDates =
+                        if (expandedDates.contains(date)) expandedDates - date else expandedDates + date
                 },
                 onToggleLocation = { loc ->
-                    expandedLocations = if (expandedLocations.contains(loc)) expandedLocations - loc else expandedLocations + loc
+                    expandedLocations =
+                        if (expandedLocations.contains(loc)) expandedLocations - loc else expandedLocations + loc
                 },
                 onDeletePhotos = { photos ->
                     viewModel.deletePhotos(photos)
@@ -344,6 +461,49 @@ fun MapScreen(
                 allPhotos = bottomSheetPhotos,
                 allowSelection = false
             )
+        }
+    }
+
+    // Old custom popup Box removed in favor of MarkerInfoWindow
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = {
+                showDatePicker = false
+                longPressedLocation = null
+                pendingUris = emptyList()
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDatePicker = false
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val dateString =
+                            SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(millis))
+                        viewModel.importPhotos(
+                            context,
+                            pendingUris,
+                            longPressedLocation!!,
+                            dateString
+                        )
+                    }
+                    longPressedLocation = null
+                    pendingUris = emptyList()
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDatePicker = false
+                    longPressedLocation = null
+                    pendingUris = emptyList()
+                }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }

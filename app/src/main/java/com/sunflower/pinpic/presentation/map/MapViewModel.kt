@@ -9,6 +9,15 @@ import com.sunflower.pinpic.domain.map.GeoClusterIndex
 import com.sunflower.pinpic.domain.map.GeoPoint
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.domain.repository.PhotosRepository
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import com.google.android.gms.maps.model.LatLng
+import java.io.File
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -207,6 +216,43 @@ class MapViewModel @Inject constructor(
     fun deletePhotos(photos: List<Photo>) {
         viewModelScope.launch {
             photosRepository.deletePhotos(photos)
+        }
+    }
+
+    fun importPhotos(context: Context, uris: List<Uri>, latLng: LatLng, dateStr: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val resolver = context.contentResolver
+            val timeFormatter = SimpleDateFormat("HH:mm:ss", Locale.US)
+            val filePrefixFormatter = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
+
+            uris.forEach { uri ->
+                try {
+                    val inputStream = resolver.openInputStream(uri) ?: return@forEach
+                    val picturesDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+                    
+                    val fileName = "PinPic-Import-${filePrefixFormatter.format(Date())}.jpg"
+                    val destFile = File(picturesDir, fileName)
+
+                    FileOutputStream(destFile).use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                    inputStream.close()
+
+                    val now = Date()
+                    val photo = Photo(
+                        lat = latLng.latitude,
+                        lng = latLng.longitude,
+                        date = dateStr,
+                        time = timeFormatter.format(now),
+                        locationName = null,
+                        uri = destFile.absolutePath,
+                        url = null
+                    )
+                    photosRepository.savePhoto(photo)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         }
     }
 
