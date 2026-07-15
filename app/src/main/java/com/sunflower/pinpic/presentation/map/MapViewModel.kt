@@ -194,6 +194,22 @@ class MapViewModel @Inject constructor(
         return index?.getChildren(clusterId) ?: emptyList()
     }
 
+    /** Returns all actual Photos under a given node (cluster or point). */
+    suspend fun getPhotosForNode(clusterId: Long): List<Photo> {
+        return indexMutex.withLock {
+            val idx = index ?: return@withLock emptyList()
+            val leaves = idx.getLeaves(clusterId)
+            val pointIds = leaves.mapNotNull { it.pointId }.toSet()
+            livePoints.filter { it.id in pointIds }.mapNotNull { it.payload as? Photo }
+        }
+    }
+
+    fun deletePhotos(photos: List<Photo>) {
+        viewModelScope.launch {
+            photosRepository.deletePhotos(photos)
+        }
+    }
+
     private fun requery(state: CameraState) {
         viewModelScope.launch(Dispatchers.Default) {
             val newNodes = queryForLocked(state)

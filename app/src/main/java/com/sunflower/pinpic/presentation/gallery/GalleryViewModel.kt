@@ -14,9 +14,11 @@ import com.sunflower.pinpic.common.Result
 
 data class GalleryUiState(
     val photosGroupedByDate: Map<String, List<Photo>> = emptyMap(),
+    val photosGroupedByLocation: Map<String, List<Photo>> = emptyMap(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    val expandedDates: Set<String> = emptySet()
+    val expandedDates: Set<String> = emptySet(),
+    val expandedLocations: Set<String> = emptySet()
 )
 
 @HiltViewModel
@@ -38,9 +40,11 @@ class GalleryViewModel @Inject constructor(
             photosRepository.getAllPhotosFlow().collect { result ->
                 when (result) {
                     is Result.Success -> {
-                        val grouped = result.data.groupBy { it.date ?: "Unknown Date" }
+                        val groupedByDate = result.data.groupBy { it.date ?: "Unknown Date" }
+                        val groupedByLocation = result.data.groupBy { it.locationName ?: "Unknown Location" }
                         _uiState.value = _uiState.value.copy(
-                            photosGroupedByDate = grouped,
+                            photosGroupedByDate = groupedByDate,
+                            photosGroupedByLocation = groupedByLocation,
                             isLoading = false
                         )
                     }
@@ -63,6 +67,16 @@ class GalleryViewModel @Inject constructor(
             currentExpanded + dateStr
         }
         _uiState.value = _uiState.value.copy(expandedDates = newExpanded)
+    }
+
+    fun toggleLocationExpansion(locationStr: String) {
+        val currentExpanded = _uiState.value.expandedLocations
+        val newExpanded = if (currentExpanded.contains(locationStr)) {
+            currentExpanded - locationStr
+        } else {
+            currentExpanded + locationStr
+        }
+        _uiState.value = _uiState.value.copy(expandedLocations = newExpanded)
     }
 
     fun deletePhotos(photos: List<Photo>) {
