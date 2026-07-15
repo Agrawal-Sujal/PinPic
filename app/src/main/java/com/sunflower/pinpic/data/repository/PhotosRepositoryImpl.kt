@@ -4,9 +4,11 @@ import com.sunflower.pinpic.data.local.dao.PhotoDao
 import com.sunflower.pinpic.data.mapper.toDomain
 import com.sunflower.pinpic.data.mapper.toEntity
 import com.sunflower.pinpic.data.local.entity.PhotoEntity
+import com.sunflower.pinpic.domain.model.ClusterPoint
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.domain.repository.PhotosRepository
 import com.sunflower.pinpic.common.Result
+import com.sunflower.pinpic.data.local.entity.ClusterPointEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
@@ -36,6 +38,58 @@ class PhotosRepositoryImpl @Inject constructor(
 
     override fun getAllPhotosFlow(): Flow<Result<List<Photo>>> {
         return dao.getAllPhotosFlow().map<List<PhotoEntity>, Result<List<Photo>>> { entities ->
+            Result.Success(entities.map { it.toDomain() })
+        }.catch { e ->
+            emit(Result.Error(e.message ?: "Unknown error"))
+        }
+    }
+
+    override suspend fun getUnclusteredPhotos(): Result<List<Photo>> {
+        return try {
+            val photos = dao.getUnclusteredPhotos().map { it.toDomain() }
+            Result.Success(photos)
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    override fun getUnclusteredPhotosFlow(): Flow<Result<List<Photo>>> {
+        return dao.getUnclusteredPhotosFlow().map<List<PhotoEntity>, Result<List<Photo>>> { entities ->
+            Result.Success(entities.map { it.toDomain() })
+        }.catch { e ->
+            emit(Result.Error(e.message ?: "Unknown error"))
+        }
+    }
+
+    override suspend fun getPhotosByClusterIds(clusterIds: List<Long>): Result<List<Photo>> {
+        return try {
+            val photos = dao.getPhotosByClusterIds(clusterIds).map { it.toDomain() }
+            Result.Success(photos)
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    override suspend fun saveClusterPoint(clusterPoint: ClusterPoint): Result<Long> {
+        return try {
+            val id = dao.insertClusterPoint(clusterPoint.toEntity())
+            Result.Success(id)
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    override suspend fun getAllClusterPoints(): Result<List<ClusterPoint>> {
+        return try {
+            val clusters = dao.getAllClusterPoints().map { it.toDomain() }
+            Result.Success(clusters)
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    override fun getAllClusterPointsFlow(): Flow<Result<List<ClusterPoint>>> {
+        return dao.getAllClusterPointsFlow().map<List<ClusterPointEntity>, Result<List<ClusterPoint>>> { entities ->
             Result.Success(entities.map { it.toDomain() })
         }.catch { e ->
             emit(Result.Error(e.message ?: "Unknown error"))

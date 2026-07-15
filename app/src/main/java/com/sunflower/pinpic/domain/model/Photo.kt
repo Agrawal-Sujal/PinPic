@@ -8,5 +8,6 @@ data class Photo(
     val time: String?,
     val locationName: String?,
     val uri: String?,
-    val url: String?
+    val url: String?,
+    val clusterId: Long? = null
 )

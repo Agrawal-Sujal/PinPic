@@ -7,6 +7,7 @@ import com.sunflower.pinpic.domain.map.BBox
 import com.sunflower.pinpic.domain.map.ClusterNode
 import com.sunflower.pinpic.domain.map.GeoClusterIndex
 import com.sunflower.pinpic.domain.map.GeoPoint
+import com.sunflower.pinpic.domain.model.ClusterPoint
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.domain.repository.PhotosRepository
 import android.content.Context
@@ -31,7 +32,6 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 
-/** How often the index gets fully recomputed from scratch — see the rebuild loop in init{}. */
 private const val REBUILD_INTERVAL_MS = 5_000L
 
 data class CameraState(val bbox: BBox, val zoom: Int)
@@ -50,22 +50,10 @@ class MapViewModel @Inject constructor(
 ) : ViewModel() {
 
     private var index: GeoClusterIndex? = null
-
-    // KDTree.insert() mutates the tree in place, so both the initial build and every later
-    // addPoint() go through this lock to keep them from touching the tree concurrently.
     private val indexMutex = Mutex()
-
-    // Points that arrive via addPoint() before the initial build finishes get queued here, then
-    // flushed into the fresh index once it exists.
     private val pendingInserts = ArrayDeque<GeoPoint>()
-
-    // Every point the index has ever seen — the original batch plus everything added later via
-    // addPoint(). This is what rebuildIndexNow() rebuilds from, since GeoClusterIndex.build()
-    // needs the full point set, not just what changed since the last build.
     private val livePoints = mutableListOf<GeoPoint>()
-
     private val camera = MutableStateFlow<CameraState?>(null)
-
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState
 
@@ -73,68 +61,77 @@ class MapViewModel @Inject constructor(
         var initialBuildStarted = false
 
         viewModelScope.launch {
-            photosRepository.getAllPhotosFlow().collect { result ->
-                when (result) {
-                    is Result.Success -> {
-                        val newPhotos = result.data
-                        
-                        val newPoints = indexMutex.withLock {
-                            val existingIds = livePoints.map { it.id }.toSet()
-                            val pointsToAdd = newPhotos.filter { it.id.toString() !in existingIds }.mapNotNull { it.toGeoPoint() }
-                            livePoints.addAll(pointsToAdd)
-                            pointsToAdd
-                        }
+            combine(
+                photosRepository.getUnclusteredPhotosFlow(),
+                photosRepository.getAllClusterPointsFlow()
+            ) { unclusteredResult, clustersResult ->
+                if (unclusteredResult is Result.Success && clustersResult is Result.Success) {
+                    val unclustered = unclusteredResult.data
+                    val clusters = clustersResult.data
+                    
+                    val unclusteredPoints = unclustered.mapNotNull { it.toGeoPoint() }
+                    val clusterPoints = clusters.map { it.toGeoPoint() }
+                    
+                    unclusteredPoints + clusterPoints
+                } else {
+                    null
+                }
+            }.collect { newPointsList ->
+                if (newPointsList == null) {
+                    _uiState.update { it.copy(isLoading = false, errorMessage = "Error loading map points") }
+                    return@collect
+                }
+                
+                val newPoints = indexMutex.withLock {
+                    val existingIds = livePoints.map { it.id }.toSet()
+                    val pointsToAdd = newPointsList.filter { it.id !in existingIds }
+                    livePoints.addAll(pointsToAdd)
+                    pointsToAdd
+                }
 
-                        if (newPoints.isNotEmpty()) {
-                            indexMutex.withLock {
-                                val idx = index
-                                if (idx == null) {
-                                    pendingInserts.addAll(newPoints)
-                                } else {
-                                    newPoints.forEach { idx.addPoint(it) }
-                                }
-                            }
-                            
-                            if (!initialBuildStarted) {
-                                initialBuildStarted = true
-                                viewModelScope.launch {
-                                    val snapshot = indexMutex.withLock { pendingInserts.toList() }
-                                    val built = withContext(Dispatchers.Default) {
-                                        GeoClusterIndex.build(snapshot, minZoom = 0, maxZoom = 16, radiusPixels = 40.0)
-                                    }
-                                    indexMutex.withLock {
-                                        index = built
-                                        repeat(snapshot.size) { pendingInserts.removeFirst() }
-                                        while (pendingInserts.isNotEmpty()) {
-                                            built.addPoint(pendingInserts.removeFirst())
-                                        }
-                                    }
-                                    _uiState.update { it.copy(isLoading = false) }
-                                    camera.value?.let { requery(it) }
-                                }
-                            } else if (index != null) {
-                                camera.value?.let { requery(it) }
-                            }
-                        } else if (!initialBuildStarted) {
-                             // Zero photos from DB initially
-                             initialBuildStarted = true
-                             viewModelScope.launch {
-                                 val built = withContext(Dispatchers.Default) {
-                                        GeoClusterIndex.build(emptyList(), minZoom = 0, maxZoom = 16, radiusPixels = 40.0)
-                                 }
-                                 indexMutex.withLock { index = built }
-                                 _uiState.update { it.copy(isLoading = false) }
-                                 camera.value?.let { requery(it) }
-                             }
+                if (newPoints.isNotEmpty()) {
+                    indexMutex.withLock {
+                        val idx = index
+                        if (idx == null) {
+                            pendingInserts.addAll(newPoints)
                         } else {
-                            // no new points, but we've already started building
-                            if (index != null) {
-                                _uiState.update { it.copy(isLoading = false) }
-                            }
+                            newPoints.forEach { idx.addPoint(it) }
                         }
                     }
-                    is Result.Error -> {
-                        _uiState.update { it.copy(isLoading = false, errorMessage = result.message) }
+                    
+                    if (!initialBuildStarted) {
+                        initialBuildStarted = true
+                        viewModelScope.launch {
+                            val snapshot = indexMutex.withLock { pendingInserts.toList() }
+                            val built = withContext(Dispatchers.Default) {
+                                GeoClusterIndex.build(snapshot, minZoom = 0, maxZoom = 16, radiusPixels = 40.0)
+                            }
+                            indexMutex.withLock {
+                                index = built
+                                repeat(snapshot.size) { pendingInserts.removeFirst() }
+                                while (pendingInserts.isNotEmpty()) {
+                                    built.addPoint(pendingInserts.removeFirst())
+                                }
+                            }
+                            _uiState.update { it.copy(isLoading = false) }
+                            camera.value?.let { requery(it) }
+                        }
+                    } else if (index != null) {
+                        camera.value?.let { requery(it) }
+                    }
+                } else if (!initialBuildStarted) {
+                     initialBuildStarted = true
+                     viewModelScope.launch {
+                         val built = withContext(Dispatchers.Default) {
+                                GeoClusterIndex.build(emptyList(), minZoom = 0, maxZoom = 16, radiusPixels = 40.0)
+                         }
+                         indexMutex.withLock { index = built }
+                         _uiState.update { it.copy(isLoading = false) }
+                         camera.value?.let { requery(it) }
+                     }
+                } else {
+                    if (index != null) {
+                        _uiState.update { it.copy(isLoading = false) }
                     }
                 }
             }
@@ -143,7 +140,7 @@ class MapViewModel @Inject constructor(
         viewModelScope.launch {
             camera
                 .filterNotNull()
-                .debounce(10.milliseconds) // swallow intermediate frames during a pan/zoom gesture
+                .debounce(10.milliseconds) 
                 .distinctUntilChanged()
                 .mapLatest { state -> withContext(Dispatchers.Default) { queryForLocked(state) } }
                 .collect { newNodes ->
@@ -151,11 +148,6 @@ class MapViewModel @Inject constructor(
                 }
         }
 
-        // Periodic full rebuild: addPoint()/KDTree.insert() is cheap but leaves every new point
-        // as its own unmerged marker (see GeoClusterIndex.addPoint's doc). Every few seconds this
-        // recomputes the real clustering from every point seen so far, folding those loose points
-        // back into proper clusters — the same "insert cheaply, rebuild periodically" trade-off
-        // discussed for KDTree.insert() itself.
         viewModelScope.launch {
             while (true) {
                 delay(REBUILD_INTERVAL_MS.milliseconds)
@@ -164,17 +156,10 @@ class MapViewModel @Inject constructor(
         }
     }
 
-    /** Call this from your camera-idle listener (MapLibre's onCameraIdle / GMaps' setOnCameraIdleListener). */
     fun onCameraIdle(state: CameraState) {
         camera.value = state
     }
 
-    /**
-     * Recomputes the clustering from scratch using every point seen so far ([livePoints]) and
-     * atomically swaps it in for the live index. The expensive [GeoClusterIndex.build] call itself
-     * runs outside the lock (on [Dispatchers.Default]) so it doesn't block concurrent inserts or
-     * queries while it's crunching — only the final pointer swap is guarded.
-     */
     private suspend fun rebuildIndexNow() {
         val snapshot = indexMutex.withLock { livePoints.toList() }
         if (snapshot.isEmpty()) return
@@ -183,34 +168,45 @@ class MapViewModel @Inject constructor(
             GeoClusterIndex.build(snapshot, minZoom = 0, maxZoom = 16, radiusPixels = 40.0)
         }
         indexMutex.withLock { 
-            if (index != null) { // Only swap if the initial build finished
+            if (index != null) { 
                 index = rebuilt 
             }
         }
         camera.value?.let { requery(it) }
     }
 
-    // Suspend + lock-guarded because a query walks the same KD-tree nodes that addPoint()'s
-    // insert() mutates — without the lock a query could read a half-linked node mid-insert.
     private suspend fun queryForLocked(state: CameraState): List<ClusterNode> {
         return indexMutex.withLock {
             index?.getClusters(state.bbox, state.zoom) ?: emptyList()
         }
     }
 
-    /** Tap handler for a cluster bubble: zoom in, or fetch its immediate children to fan out. */
     fun childrenOf(clusterId: Long): List<ClusterNode> {
         return index?.getChildren(clusterId) ?: emptyList()
     }
 
-    /** Returns all actual Photos under a given node (cluster or point). */
     suspend fun getPhotosForNode(clusterId: Long): List<Photo> {
-        return indexMutex.withLock {
-            val idx = index ?: return@withLock emptyList()
+        val (directPhotos, clusterPoints) = indexMutex.withLock {
+            val idx = index ?: return@withLock Pair(emptyList<Photo>(), emptyList<ClusterPoint>())
             val leaves = idx.getLeaves(clusterId)
             val pointIds = leaves.mapNotNull { it.pointId }.toSet()
-            livePoints.filter { it.id in pointIds }.mapNotNull { it.payload as? Photo }
+            
+            val liveLeaves = livePoints.filter { it.id in pointIds }
+            
+            val direct = liveLeaves.mapNotNull { it.payload as? Photo }
+            val clusters = liveLeaves.mapNotNull { it.payload as? ClusterPoint }
+            Pair(direct, clusters)
         }
+
+        val clusteredPhotos = if (clusterPoints.isNotEmpty()) {
+            val clusterIds = clusterPoints.map { it.id }
+            val result = photosRepository.getPhotosByClusterIds(clusterIds)
+            if (result is Result.Success) result.data else emptyList()
+        } else {
+            emptyList()
+        }
+        
+        return directPhotos + clusteredPhotos
     }
 
     fun deletePhotos(photos: List<Photo>) {
@@ -224,6 +220,20 @@ class MapViewModel @Inject constructor(
             val resolver = context.contentResolver
             val timeFormatter = SimpleDateFormat("HH:mm:ss", Locale.US)
             val filePrefixFormatter = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
+            val now = Date()
+
+            var createdClusterId: Long? = null
+            if (uris.size > 1) {
+                val cluster = ClusterPoint(
+                    lat = latLng.latitude,
+                    lng = latLng.longitude,
+                    count = uris.size
+                )
+                val res = photosRepository.saveClusterPoint(cluster)
+                if (res is Result.Success) {
+                    createdClusterId = res.data
+                }
+            }
 
             uris.forEach { uri ->
                 try {
@@ -238,7 +248,6 @@ class MapViewModel @Inject constructor(
                     }
                     inputStream.close()
 
-                    val now = Date()
                     val photo = Photo(
                         lat = latLng.latitude,
                         lng = latLng.longitude,
@@ -246,7 +255,8 @@ class MapViewModel @Inject constructor(
                         time = timeFormatter.format(now),
                         locationName = null,
                         uri = destFile.absolutePath,
-                        url = null
+                        url = null,
+                        clusterId = createdClusterId
                     )
                     photosRepository.savePhoto(photo)
                 } catch (e: Exception) {
@@ -266,9 +276,19 @@ class MapViewModel @Inject constructor(
     private fun Photo.toGeoPoint(): GeoPoint? {
         if (lat == null || lng == null) return null
         return GeoPoint(
-            id = id.toString(),
+            id = "p_$id",
             lat = lat,
             lon = lng,
+            payload = this
+        )
+    }
+
+    private fun ClusterPoint.toGeoPoint(): GeoPoint {
+        return GeoPoint(
+            id = "c_$id",
+            lat = lat,
+            lon = lng,
+            count = count,
             payload = this
         )
     }

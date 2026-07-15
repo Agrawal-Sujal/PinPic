@@ -12,6 +12,7 @@ data class GeoPoint(
     val id: String,
     val lat: Double,
     val lon: Double,
+    val count: Int = 1,
     val payload: Any? = null
 )
 
@@ -153,7 +154,7 @@ class GeoClusterIndex private constructor(
                     id = nextId(),
                     x = lngX(p.lon),
                     y = latY(p.lat),
-                    count = 1,
+                    count = p.count,
                     pointId = p.id,
                     childIds = null,
                     zoom = maxZoom + 1 // leaves are always "visible" as themselves at max zoom
