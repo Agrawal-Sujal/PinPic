@@ -271,11 +271,19 @@ fun MapScreen(
                 key(node.id) {
                     Marker(
                         state = rememberMarkerState(position = LatLng(node.lat, node.lon)),
-                        icon = if (node.count > 1) iconFactory.cluster(node.count) else iconFactory.point(),
+                        icon = if (node.isCluster) iconFactory.cluster(node.count) else iconFactory.point(),
                         anchor = Offset(0.5f, 0.5f),
                         flat = true,
                         onClick = {
-                            selectedMenuNode = node
+                            if (!node.isCluster) {
+                                showBottomSheet = true
+                                coroutineScope.launch {
+                                    val photos = viewModel.getPhotosForNode(node.id)
+                                    bottomSheetPhotos = photos
+                                }
+                            } else {
+                                selectedMenuNode = node
+                            }
                             true
                         }
                     )

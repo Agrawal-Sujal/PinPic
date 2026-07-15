@@ -104,7 +104,7 @@ class MapViewModel @Inject constructor(
                         viewModelScope.launch {
                             val snapshot = indexMutex.withLock { pendingInserts.toList() }
                             val built = withContext(Dispatchers.Default) {
-                                GeoClusterIndex.build(snapshot, minZoom = 0, maxZoom = 16, radiusPixels = 40.0)
+                                GeoClusterIndex.build(snapshot, minZoom = 0, maxZoom = 21, radiusPixels = 40.0)
                             }
                             indexMutex.withLock {
                                 index = built
@@ -123,7 +123,7 @@ class MapViewModel @Inject constructor(
                      initialBuildStarted = true
                      viewModelScope.launch {
                          val built = withContext(Dispatchers.Default) {
-                                GeoClusterIndex.build(emptyList(), minZoom = 0, maxZoom = 16, radiusPixels = 40.0)
+                                GeoClusterIndex.build(emptyList(), minZoom = 0, maxZoom = 21, radiusPixels = 40.0)
                          }
                          indexMutex.withLock { index = built }
                          _uiState.update { it.copy(isLoading = false) }
@@ -165,7 +165,7 @@ class MapViewModel @Inject constructor(
         if (snapshot.isEmpty()) return
         
         val rebuilt = withContext(Dispatchers.Default) {
-            GeoClusterIndex.build(snapshot, minZoom = 0, maxZoom = 16, radiusPixels = 40.0)
+            GeoClusterIndex.build(snapshot, minZoom = 0, maxZoom = 21, radiusPixels = 40.0)
         }
         indexMutex.withLock { 
             if (index != null) { 

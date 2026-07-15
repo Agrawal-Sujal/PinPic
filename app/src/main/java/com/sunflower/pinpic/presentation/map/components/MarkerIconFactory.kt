@@ -1,12 +1,12 @@
 package com.sunflower.pinpic.presentation.map.components
 
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.util.LruCache
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import androidx.core.graphics.createBitmap
 
 /**
  * Pre-renders marker icons as plain Android Bitmaps instead of going through Compose's
@@ -59,10 +59,10 @@ class MarkerIconFactory(private val density: Float) {
     }
 
     private fun buildPointIcon(): BitmapDescriptor {
-        val size = dp(10)
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val size = dp(16)
+        val bmp = createBitmap(size, size)
         val canvas = Canvas(bmp)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0x33, 0x66, 0xCC) }
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0x34, 0xA8, 0x53) } // Green
         canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
         return BitmapDescriptorFactory.fromBitmap(bmp)
     }
@@ -75,7 +75,7 @@ class MarkerIconFactory(private val density: Float) {
             else -> 40
         }
         val size = dp(diameterDp)
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val bmp = createBitmap(size, size)
         val canvas = Canvas(bmp)
         val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0xCC, 0x55, 0x00) }
         canvas.drawCircle(size / 2f, size / 2f, size / 2f, bg)
