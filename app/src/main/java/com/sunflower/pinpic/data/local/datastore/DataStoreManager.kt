@@ -23,6 +23,8 @@ class DataStoreManager @Inject constructor(
         val USERNAME = stringPreferencesKey("username")
         val EMAIL = stringPreferencesKey("email")
         val PICTURE_URL = stringPreferencesKey("picture_url")
+        val FULL_NAME = stringPreferencesKey("full_name")
+        val MOBILE_NUMBER = stringPreferencesKey("mobile_number")
     }
 
     suspend fun saveAuthInfo(jwt: String, username: String?, email: String?, pictureUrl: String?) {
@@ -34,12 +36,23 @@ class DataStoreManager @Inject constructor(
         }
     }
 
+    suspend fun updateProfileInfo(fullName: String?, email: String?, mobileNumber: String?, pictureUrl: String?) {
+        context.dataStore.edit { prefs ->
+            if (fullName != null) prefs[FULL_NAME] = fullName
+            if (email != null) prefs[EMAIL] = email
+            if (mobileNumber != null) prefs[MOBILE_NUMBER] = mobileNumber
+            if (pictureUrl != null) prefs[PICTURE_URL] = pictureUrl
+        }
+    }
+
     suspend fun clearAuthInfo() {
         context.dataStore.edit { prefs ->
             prefs.remove(JWT_TOKEN)
             prefs.remove(USERNAME)
             prefs.remove(EMAIL)
             prefs.remove(PICTURE_URL)
+            prefs.remove(FULL_NAME)
+            prefs.remove(MOBILE_NUMBER)
         }
     }
 
@@ -53,5 +66,17 @@ class DataStoreManager @Inject constructor(
 
     val emailFlow: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[EMAIL]
+    }
+
+    val pictureUrlFlow: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[PICTURE_URL]
+    }
+
+    val fullNameFlow: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[FULL_NAME]
+    }
+
+    val mobileNumberFlow: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[MOBILE_NUMBER]
     }
 }

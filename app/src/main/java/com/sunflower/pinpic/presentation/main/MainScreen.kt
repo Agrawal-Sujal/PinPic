@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.sunflower.pinpic.presentation.gallery.GalleryScreen
 import com.sunflower.pinpic.presentation.map.MapScreen
+import com.sunflower.pinpic.presentation.profile.ProfileScreen
 
 
 enum class MainTab(val icon: ImageVector, val filledIcon: ImageVector, val label: String) {
@@ -73,7 +74,7 @@ fun MainScreen(
                 MainTab.Map -> MapScreen()
                 MainTab.Gallery -> GalleryScreen()
                 MainTab.Chat -> DummyScreen("Chat Screen")
-                MainTab.Profile -> DummyScreen("Profile Screen")
+                MainTab.Profile -> ProfileScreen()
             }
         }
 
