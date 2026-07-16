@@ -63,7 +63,7 @@ import com.google.maps.android.compose.rememberMarkerState
 import com.sunflower.pinpic.R
 import com.sunflower.pinpic.domain.map.BBox
 import com.sunflower.pinpic.domain.map.ClusterNode
-import com.sunflower.pinpic.presentation.map.components.MarkerIconFactory
+import com.sunflower.pinpic.presentation.map.components.PhotoMapMarker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -82,6 +82,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.sunflower.pinpic.presentation.map.components.MarkerIconFactory
 
 private const val MARKER_CHUNK_SIZE = 10
 private const val MARKER_CHUNK_DELAY_MS = 32L
@@ -269,24 +270,32 @@ fun MapScreen(
 
             renderedNodes.forEach { node ->
                 key(node.id) {
-                    Marker(
-                        state = rememberMarkerState(position = LatLng(node.lat, node.lon)),
-                        icon = if (node.isCluster) iconFactory.cluster(node.count) else iconFactory.point(),
-                        anchor = Offset(0.5f, 0.5f),
-                        flat = true,
-                        onClick = {
-                            if (!node.isCluster) {
+                    if (node.isCluster) {
+                        Marker(
+                            state = rememberMarkerState(position = LatLng(node.lat, node.lon)),
+                            icon =iconFactory.cluster(node.count),
+                            anchor = Offset(0.5f, 0.5f),
+                            flat = true,
+                            onClick = {
+                                selectedMenuNode = node
+                                true
+                            }
+                        )
+                    } else {
+                        PhotoMapMarker(
+                            node = node,
+                            viewModel = viewModel,
+                            onClick = {
                                 showBottomSheet = true
                                 coroutineScope.launch {
                                     val photos = viewModel.getPhotosForNode(node.id)
                                     bottomSheetPhotos = photos
                                 }
-                            } else {
-                                selectedMenuNode = node
-                            }
-                            true
-                        }
-                    )
+
+                            },
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
                 }
             }
 
@@ -355,9 +364,11 @@ fun MapScreen(
                     shadowElevation = 8.dp,
                     color = MaterialTheme.colorScheme.surface
                 ) {
-                    Column(modifier = Modifier
-                        .width(IntrinsicSize.Max)
-                        .padding(vertical = 8.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .width(IntrinsicSize.Max)
+                            .padding(vertical = 8.dp)
+                    ) {
                         Text(
                             text = "Zoom",
                             modifier = Modifier
@@ -420,9 +431,11 @@ fun MapScreen(
                     shadowElevation = 8.dp,
                     color = MaterialTheme.colorScheme.surface
                 ) {
-                    Column(modifier = Modifier
-                        .width(IntrinsicSize.Max)
-                        .padding(vertical = 8.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .width(IntrinsicSize.Max)
+                            .padding(vertical = 8.dp)
+                    ) {
                         Text(
                             text = "Add image",
                             modifier = Modifier

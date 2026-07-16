@@ -1,6 +1,7 @@
 package com.sunflower.pinpic.presentation.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -39,7 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
@@ -107,13 +110,10 @@ fun CustomFloatingBottomNavigation(
                 .fillMaxWidth()
                 .height(64.dp)
                 .align(Alignment.BottomCenter)
-                .shadow(
-                    elevation = 4.dp,
-                    shape = BottomNavCutoutShape(),
-                    clip = false
-                )
+                .border(width = 0.5.dp, color = MaterialTheme.colorScheme.outline, shape = BottomNavCutoutShape())
+                .shadow(elevation = 1.dp, shape = BottomNavCutoutShape())
                 .background(
-                    color = MaterialTheme.colorScheme.surfaceVariant, // Kept your theme background
+                    color = MaterialTheme.colorScheme.surface,
                     shape = BottomNavCutoutShape()
                 )
                 .padding(horizontal = 16.dp),
@@ -189,7 +189,9 @@ fun BottomNavItem(
         Icon(
             imageVector = if (isSelected) tab.filledIcon else tab.icon,
             contentDescription = tab.label,
-            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                alpha = 0.6f
+            ),
             modifier = Modifier.size(26.dp)
         )
     }
@@ -228,7 +230,7 @@ class BottomNavCutoutShape : Shape {
 
             lineTo(size.width - cornerRadius, 0f)
             arcTo(
-                rect = androidx.compose.ui.geometry.Rect(
+                rect = Rect(
                     size.width - (cornerRadius * 2), 0f, size.width, size.height
                 ),
                 startAngleDegrees = -90f,

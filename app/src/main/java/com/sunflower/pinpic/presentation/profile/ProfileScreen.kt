@@ -68,7 +68,7 @@ fun ProfileScreen(
             Text(
                 text = "Profile",
                 style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Icon(

@@ -40,4 +40,12 @@ interface PhotoDao {
 
     @androidx.room.Delete
     suspend fun deletePhotos(photos: List<PhotoEntity>)
+
+    @androidx.room.Transaction
+    suspend fun insertClusterAndPhotos(cluster: ClusterPointEntity, photos: List<PhotoEntity>): Long {
+        val clusterId = insertClusterPoint(cluster)
+        val photosWithCluster = photos.map { it.copy(clusterId = clusterId) }
+        photosWithCluster.forEach { insertPhoto(it) }
+        return clusterId
+    }
 }

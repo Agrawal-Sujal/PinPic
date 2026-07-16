@@ -1,5 +1,9 @@
 package com.sunflower.pinpic.presentation.map
 
+import dagger.hilt.android.qualifiers.ApplicationContext
+import com.sunflower.pinpic.common.ImageUtils
+
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sunflower.pinpic.common.Result
@@ -10,6 +14,7 @@ import com.sunflower.pinpic.domain.map.GeoPoint
 import com.sunflower.pinpic.domain.model.ClusterPoint
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.domain.repository.PhotosRepository
+import com.sunflower.pinpic.domain.usecase.SavePhotosUseCase
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
@@ -46,7 +51,9 @@ data class MapUiState(
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class MapViewModel @Inject constructor(
-    private val photosRepository: PhotosRepository
+    @ApplicationContext private val context: Context,
+    private val photosRepository: PhotosRepository,
+    private val savePhotosUseCase: SavePhotosUseCase
 ) : ViewModel() {
 
     private var index: GeoClusterIndex? = null
@@ -65,23 +72,43 @@ class MapViewModel @Inject constructor(
                 photosRepository.getUnclusteredPhotosFlow(),
                 photosRepository.getAllClusterPointsFlow()
             ) { unclusteredResult, clustersResult ->
-                if (unclusteredResult is Result.Success && clustersResult is Result.Success) {
-                    val unclustered = unclusteredResult.data
+                if (clustersResult is Result.Success) {
                     val clusters = clustersResult.data
-                    
-                    val unclusteredPoints = unclustered.mapNotNull { it.toGeoPoint() }
-                    val clusterPoints = clusters.map { it.toGeoPoint() }
-                    
-                    unclusteredPoints + clusterPoints
+                    val updatedClusters = mutableListOf<ClusterPoint>()
+                    for (cluster in clusters) {
+                        if (cluster.thumbnailUri == null) {
+                            val photosRes = photosRepository.getPhotosByClusterIds(listOf(cluster.id))
+                            if (photosRes is Result.Success && photosRes.data.isNotEmpty()) {
+                                val firstPhoto = photosRes.data.first()
+                                val photoUri = firstPhoto.uri ?: firstPhoto.url
+                                if (photoUri != null) {
+                                    val thumbUri = ImageUtils.generateAndSaveThumbnail(context, photoUri)
+                                    if (thumbUri != null) {
+                                        val updated = cluster.copy(thumbnailUri = thumbUri)
+                                        photosRepository.saveClusterPoint(updated)
+                                        updatedClusters.add(updated)
+                                        continue
+                                    }
+                                }
+                            }
+                        }
+                        updatedClusters.add(cluster)
+                    }
+                    updatedClusters.map { it.toGeoPoint() }
                 } else {
                     null
                 }
             }.collect { newPointsList ->
                 if (newPointsList == null) {
-                    _uiState.update { it.copy(isLoading = false, errorMessage = "Error loading map points") }
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = "Error loading map points"
+                        )
+                    }
                     return@collect
                 }
-                
+
                 val newPoints = indexMutex.withLock {
                     val existingIds = livePoints.map { it.id }.toSet()
                     val pointsToAdd = newPointsList.filter { it.id !in existingIds }
@@ -98,7 +125,7 @@ class MapViewModel @Inject constructor(
                             newPoints.forEach { idx.addPoint(it) }
                         }
                     }
-                    
+
                     if (!initialBuildStarted) {
                         initialBuildStarted = true
                         viewModelScope.launch {
@@ -120,15 +147,20 @@ class MapViewModel @Inject constructor(
                         camera.value?.let { requery(it) }
                     }
                 } else if (!initialBuildStarted) {
-                     initialBuildStarted = true
-                     viewModelScope.launch {
-                         val built = withContext(Dispatchers.Default) {
-                                GeoClusterIndex.build(emptyList(), minZoom = 0, maxZoom = 21, radiusPixels = 40.0)
-                         }
-                         indexMutex.withLock { index = built }
-                         _uiState.update { it.copy(isLoading = false) }
-                         camera.value?.let { requery(it) }
-                     }
+                    initialBuildStarted = true
+                    viewModelScope.launch {
+                        val built = withContext(Dispatchers.Default) {
+                            GeoClusterIndex.build(
+                                emptyList(),
+                                minZoom = 0,
+                                maxZoom = 21,
+                                radiusPixels = 40.0
+                            )
+                        }
+                        indexMutex.withLock { index = built }
+                        _uiState.update { it.copy(isLoading = false) }
+                        camera.value?.let { requery(it) }
+                    }
                 } else {
                     if (index != null) {
                         _uiState.update { it.copy(isLoading = false) }
@@ -140,7 +172,7 @@ class MapViewModel @Inject constructor(
         viewModelScope.launch {
             camera
                 .filterNotNull()
-                .debounce(10.milliseconds) 
+                .debounce(10.milliseconds)
                 .distinctUntilChanged()
                 .mapLatest { state -> withContext(Dispatchers.Default) { queryForLocked(state) } }
                 .collect { newNodes ->
@@ -163,13 +195,13 @@ class MapViewModel @Inject constructor(
     private suspend fun rebuildIndexNow() {
         val snapshot = indexMutex.withLock { livePoints.toList() }
         if (snapshot.isEmpty()) return
-        
+
         val rebuilt = withContext(Dispatchers.Default) {
             GeoClusterIndex.build(snapshot, minZoom = 0, maxZoom = 21, radiusPixels = 40.0)
         }
-        indexMutex.withLock { 
-            if (index != null) { 
-                index = rebuilt 
+        indexMutex.withLock {
+            if (index != null) {
+                index = rebuilt
             }
         }
         camera.value?.let { requery(it) }
@@ -185,14 +217,24 @@ class MapViewModel @Inject constructor(
         return index?.getChildren(clusterId) ?: emptyList()
     }
 
+    suspend fun getThumbnailForNode(clusterId: Long): String? {
+        return indexMutex.withLock {
+            val idx = index ?: return@withLock null
+            val leaves = idx.getLeaves(clusterId)
+            val firstPointId = leaves.firstOrNull()?.pointId ?: return@withLock null
+            val clusterPoint = livePoints.find { it.id == firstPointId }?.payload as? ClusterPoint
+            clusterPoint?.thumbnailUri
+        }
+    }
+
     suspend fun getPhotosForNode(clusterId: Long): List<Photo> {
         val (directPhotos, clusterPoints) = indexMutex.withLock {
             val idx = index ?: return@withLock Pair(emptyList<Photo>(), emptyList<ClusterPoint>())
             val leaves = idx.getLeaves(clusterId)
             val pointIds = leaves.mapNotNull { it.pointId }.toSet()
-            
+
             val liveLeaves = livePoints.filter { it.id in pointIds }
-            
+
             val direct = liveLeaves.mapNotNull { it.payload as? Photo }
             val clusters = liveLeaves.mapNotNull { it.payload as? ClusterPoint }
             Pair(direct, clusters)
@@ -205,7 +247,7 @@ class MapViewModel @Inject constructor(
         } else {
             emptyList()
         }
-        
+
         return directPhotos + clusteredPhotos
     }
 
@@ -223,23 +265,21 @@ class MapViewModel @Inject constructor(
             val now = Date()
 
             var createdClusterId: Long? = null
-            if (uris.size > 1) {
-                val cluster = ClusterPoint(
-                    lat = latLng.latitude,
-                    lng = latLng.longitude,
-                    count = uris.size
-                )
-                val res = photosRepository.saveClusterPoint(cluster)
-                if (res is Result.Success) {
-                    createdClusterId = res.data
-                }
+            val cluster = ClusterPoint(
+                lat = latLng.latitude,
+                lng = latLng.longitude,
+                count = uris.size
+            )
+            val res = photosRepository.saveClusterPoint(cluster)
+            if (res is Result.Success) {
+                createdClusterId = res.data
             }
 
             uris.forEach { uri ->
                 try {
                     val inputStream = resolver.openInputStream(uri) ?: return@forEach
                     val picturesDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-                    
+
                     val fileName = "PinPic-Import-${filePrefixFormatter.format(Date())}.jpg"
                     val destFile = File(picturesDir, fileName)
 

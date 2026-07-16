@@ -12,9 +12,13 @@ import com.sunflower.pinpic.data.local.entity.ClusterPointEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import android.content.Context
+import com.sunflower.pinpic.common.ImageUtils
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
 class PhotosRepositoryImpl @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val dao: PhotoDao
 ) : PhotosRepository {
 
@@ -70,6 +74,26 @@ class PhotosRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun saveClusterWithPhotos(clusterPoint: ClusterPoint, photos: List<Photo>): Result<Unit> {
+        return try {
+            var updatedCluster = clusterPoint
+            if (clusterPoint.thumbnailUri == null && photos.isNotEmpty()) {
+                val firstPhoto = photos.first()
+                val photoUri = firstPhoto.uri ?: firstPhoto.url
+                if (photoUri != null) {
+                    val thumbUri = ImageUtils.generateAndSaveThumbnail(context, photoUri)
+                    if (thumbUri != null) {
+                        updatedCluster = clusterPoint.copy(thumbnailUri = thumbUri)
+                    }
+                }
+            }
+            dao.insertClusterAndPhotos(updatedCluster.toEntity(), photos.map { it.toEntity() })
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Unknown error")
+        }
+    }
+
     override suspend fun saveClusterPoint(clusterPoint: ClusterPoint): Result<Long> {
         return try {
             val id = dao.insertClusterPoint(clusterPoint.toEntity())
@@ -107,6 +131,7 @@ class PhotosRepositoryImpl @Inject constructor(
                         file.delete()
                     }
                 }
+
             }
             Result.Success(Unit)
         } catch (e: Exception) {

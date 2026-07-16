@@ -6,7 +6,7 @@ import com.sunflower.pinpic.data.local.dao.PhotoDao
 import com.sunflower.pinpic.data.local.entity.ClusterPointEntity
 import com.sunflower.pinpic.data.local.entity.PhotoEntity
 
-@Database(entities = [PhotoEntity::class, ClusterPointEntity::class], version = 2, exportSchema = false)
+@Database(entities = [PhotoEntity::class, ClusterPointEntity::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun photoDao(): PhotoDao
 }

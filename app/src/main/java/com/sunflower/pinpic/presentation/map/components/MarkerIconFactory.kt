@@ -69,10 +69,10 @@ class MarkerIconFactory(private val density: Float) {
 
     private fun buildClusterIcon(bucket: Int, label: String): BitmapDescriptor {
         val diameterDp = when (bucket) {
-            0 -> 22
-            1 -> 28
-            2 -> 34
-            else -> 40
+            0 -> 34
+            1 -> 40
+            2 -> 46
+            else -> 52
         }
         val size = dp(diameterDp)
         val bmp = createBitmap(size, size)

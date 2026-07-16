@@ -1,7 +1,6 @@
 package com.sunflower.pinpic.presentation.camera
 
 import android.annotation.SuppressLint
-import android.health.connect.datatypes.ExerciseRoute
 import android.location.Location
 import android.os.Looper
 import android.util.Log
@@ -13,9 +12,8 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.Priority
 import com.sunflower.pinpic.domain.model.Photo
-import com.sunflower.pinpic.domain.usecase.SavePhotoUseCase
+import com.sunflower.pinpic.domain.usecase.SavePhotosUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,11 +22,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
-import kotlin.time.Duration.Companion.milliseconds
 
 @HiltViewModel
 class CameraViewModel @Inject constructor(
-    private val savePhotoUseCase: SavePhotoUseCase,
+    private val savePhotosUseCase: SavePhotosUseCase,
     private val fusedLocationClient: FusedLocationProviderClient
 ) : ViewModel() {
 
@@ -95,7 +92,7 @@ class CameraViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                savePhotoUseCase(photo)
+                savePhotosUseCase(listOf(photo), photo.lat ?: 0.0, photo.lng ?: 0.0)
             } finally {
                 _isSaving.value = false
             }

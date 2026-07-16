@@ -396,7 +396,7 @@ fun GalleryTabs(
                     .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
                     .border(
                         width = 1.dp,
-                        color = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant,
+                        color = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline,
                         shape = RoundedCornerShape(12.dp)
                     )
                     .clickable { onTabSelected(index) }

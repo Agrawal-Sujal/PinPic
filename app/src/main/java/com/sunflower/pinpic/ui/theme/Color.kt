@@ -1,22 +1,24 @@
 package com.sunflower.pinpic.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
 // --- Brand ---
-val CoralLight = Color(0xFFD85A30)
+val CoralLight = Color(0xFFf56a41)
 val CoralDark  = Color(0xFFF0997B)
 
 val TealLight = Color(0xFF1D9E75)
 val TealDark  = Color(0xFF5DCAA5)
 
 // --- Light neutrals (unchanged) ---
-val BgLight = Color(0xFFFDF8F3)
-val SurfaceLight = Color(0xFFFFFFFF)
+val BgLight = Color(0xFFfbf6f0)
+val SurfaceLight = Color(0xFFfdfaf8)
 val TextPrimaryLight = Color(0xFF2B2420)
-val TextSecondaryLight = Color(0xFF8A7F73)
-val BorderLight = Color(0xFFEDE6DC)
+val TextSecondaryLight = Color(0xFF6d6e70)
+val BorderLight = Color(0xFFe3dad3)
 
 // --- Dark neutrals: warm near-black, with real elevation steps ---
 val BgDark               = Color(0xFF15120E) // base background (slightly darker, less muddy than before)
@@ -29,8 +31,8 @@ val TextSecondaryDark = Color(0xFFB6A996)
 
 val OutlineDark        = Color(0xFF4A4136) // actual dividers/borders — now visibly distinct from surfaces
 val OutlineVariantDark = Color(0xFF322B22) // subtle/low-emphasis dividers
+val BorderDark = Color(0xFF212220)
 
-val BorderDark = OutlineVariantDark // kept for backward compat if referenced elsewhere
 
 // --- Error (harmonized warm-red, not a stock M3 red) ---
 val ErrorDark   = Color(0xFFFFB4A0)
@@ -45,8 +47,10 @@ val LightColorScheme = lightColorScheme(
     onBackground   = TextPrimaryLight,
     surface        = SurfaceLight,
     onSurface      = TextPrimaryLight,
-    surfaceVariant = BorderLight,
+    surfaceVariant = Color.White,
     onSurfaceVariant = TextSecondaryLight,
+    outline = BorderLight
+
 )
 
 val DarkColorScheme = darkColorScheme(
@@ -69,7 +73,7 @@ val DarkColorScheme = darkColorScheme(
     surfaceVariant   = SurfaceContainerHighDark, // chips, input fields — now a real step up from surface
     onSurfaceVariant = TextSecondaryDark,
 
-    outline        = OutlineDark,
+    outline        = BorderDark,
     outlineVariant = OutlineVariantDark,
 
     error             = ErrorDark,

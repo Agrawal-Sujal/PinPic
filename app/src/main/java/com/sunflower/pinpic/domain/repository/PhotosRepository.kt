@@ -13,6 +13,7 @@ interface PhotosRepository {
     fun getUnclusteredPhotosFlow(): Flow<Result<List<Photo>>>
     suspend fun getPhotosByClusterIds(clusterIds: List<Long>): Result<List<Photo>>
     suspend fun saveClusterPoint(clusterPoint: ClusterPoint): Result<Long>
+    suspend fun saveClusterWithPhotos(clusterPoint: ClusterPoint, photos: List<Photo>): Result<Unit>
     suspend fun getAllClusterPoints(): Result<List<ClusterPoint>>
     fun getAllClusterPointsFlow(): Flow<Result<List<ClusterPoint>>>
     suspend fun deletePhotos(photos: List<Photo>): Result<Unit>
