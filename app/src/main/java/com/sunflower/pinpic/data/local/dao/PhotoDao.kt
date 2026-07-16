@@ -41,6 +41,12 @@ interface PhotoDao {
     @androidx.room.Delete
     suspend fun deletePhotos(photos: List<PhotoEntity>)
 
+    @Query("SELECT * FROM cluster_points WHERE id IN (:clusterIds)")
+    suspend fun getClusterPointsByIds(clusterIds: List<Long>): List<ClusterPointEntity>
+
+    @androidx.room.Delete
+    suspend fun deleteClusterPoints(clusterPoints: List<ClusterPointEntity>)
+
     @androidx.room.Transaction
     suspend fun insertClusterAndPhotos(cluster: ClusterPointEntity, photos: List<PhotoEntity>): Long {
         val clusterId = insertClusterPoint(cluster)

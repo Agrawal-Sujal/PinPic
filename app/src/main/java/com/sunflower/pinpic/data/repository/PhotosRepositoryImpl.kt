@@ -122,6 +122,7 @@ class PhotosRepositoryImpl @Inject constructor(
 
     override suspend fun deletePhotos(photos: List<Photo>): Result<Unit> {
         return try {
+            val clusterIds = photos.mapNotNull { it.clusterId }.distinct()
             dao.deletePhotos(photos.map { it.toEntity() })
             // Delete actual files
             photos.forEach { photo ->
@@ -131,8 +132,28 @@ class PhotosRepositoryImpl @Inject constructor(
                         file.delete()
                     }
                 }
-
             }
+
+            if (clusterIds.isNotEmpty()) {
+                val remainingPhotos = dao.getPhotosByClusterIds(clusterIds)
+                val remainingClusterIds = remainingPhotos.mapNotNull { it.clusterId }.toSet()
+                
+                val emptyClusterIds = clusterIds.filterNot { it in remainingClusterIds }
+                if (emptyClusterIds.isNotEmpty()) {
+                    val emptyClusters = dao.getClusterPointsByIds(emptyClusterIds)
+                    dao.deleteClusterPoints(emptyClusters)
+                    
+                    emptyClusters.forEach { cluster ->
+                        cluster.thumbnailUri?.let { uriString ->
+                            val file = java.io.File(uriString)
+                            if (file.exists()) {
+                                file.delete()
+                            }
+                        }
+                    }
+                }
+            }
+
             Result.Success(Unit)
         } catch (e: Exception) {
             Result.Error(e.message ?: "Unknown error")
