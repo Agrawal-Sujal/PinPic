@@ -1,7 +1,6 @@
 package com.sunflower.pinpic.presentation.camera
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaActionSound
@@ -14,23 +13,45 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
-import androidx.camera.video.FileOutputOptions
-import androidx.camera.video.Recording
-import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
-import androidx.camera.view.video.AudioConfig
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.ZoomOut
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -40,8 +61,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.draw.clip
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -75,9 +94,10 @@ fun CameraScreen(
 
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val latestPhotoUri by viewModel.latestPhotoUri.collectAsStateWithLifecycle()
+    val currentLocation by viewModel.currentLocation.collectAsStateWithLifecycle()
 
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(hasPermissions) {
         if (hasPermissions) viewModel.startLocationUpdates()
     }
 
@@ -112,8 +132,6 @@ fun CameraScreen(
         }
     }
 
-    var isRecording by remember { mutableStateOf(false) }
-    var recording: Recording? by remember { mutableStateOf(null) }
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     var showFullScreenPreview by remember { mutableStateOf(false) }
 
@@ -132,7 +150,6 @@ fun CameraScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Close Button
         IconButton(
             onClick = onClose,
             modifier = Modifier
@@ -140,6 +157,28 @@ fun CameraScreen(
                 .padding(16.dp)
         ) {
             Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White)
+        }
+        if (currentLocation == null) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Text(
+                    text = "Finding Location",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
         }
 
         // Camera Controls
@@ -204,21 +243,21 @@ fun CameraScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Thumbnail
-            if (latestPhotoUri != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(latestPhotoUri)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "Latest Photo",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .clickable { showFullScreenPreview = true }
-                )
-            } else {
-                Spacer(modifier = Modifier.size(56.dp))
+            Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+                if (latestPhotoUri != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(latestPhotoUri)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Latest Photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .clickable { showFullScreenPreview = true }
+                    )
+                }
             }
 
             // Photo Button
@@ -253,43 +292,8 @@ fun CameraScreen(
                 }
             }
 
-            // Video Button
-            FloatingActionButton(
-                onClick = {
-                    if (isRecording) {
-                        recording?.stop()
-                    } else {
-                        recording = recordVideo(context, cameraController, mainExecutor) { event ->
-                            when (event) {
-                                is VideoRecordEvent.Start -> {
-                                    isRecording = true
-                                }
-
-                                is VideoRecordEvent.Finalize -> {
-                                    isRecording = false
-                                    if (!event.hasError()) {
-                                        Toast.makeText(
-                                            context,
-                                            "Video saved successfully",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    } else {
-                                        Toast.makeText(
-                                            context,
-                                            "Video error: ${event.error}",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                containerColor = if (isRecording) Color.Red else Color.White,
-                contentColor = if (isRecording) Color.White else Color.Black
-            ) {
-                Icon(Icons.Filled.Videocam, contentDescription = "Record Video")
-            }
+            // Spacer to balance the thumbnail and keep the shutter button centered
+            Spacer(modifier = Modifier.size(56.dp))
         }
     }
 
@@ -383,29 +387,4 @@ private fun takePhoto(
             }
         }
     )
-}
-
-@SuppressLint("MissingPermission")
-private fun recordVideo(
-    context: Context,
-    controller: LifecycleCameraController,
-    executor: Executor,
-    onEvent: (VideoRecordEvent) -> Unit
-): Recording {
-    val videoFile = File(
-        context.getExternalFilesDir(Environment.DIRECTORY_MOVIES),
-        "PinPic-${
-            SimpleDateFormat(
-                "yyyy-MM-dd-HH-mm-ss-SSS",
-                Locale.US
-            ).format(System.currentTimeMillis())
-        }.mp4"
-    )
-    val outputOptions = FileOutputOptions.Builder(videoFile).build()
-
-    return controller.startRecording(
-        outputOptions,
-        AudioConfig.create(true),
-        executor
-    ) { event -> onEvent(event) }
 }
