@@ -1,12 +1,15 @@
 package com.sunflower.pinpic.presentation.map
 
-import dagger.hilt.android.qualifiers.ApplicationContext
-import com.sunflower.pinpic.common.ImageUtils
 
-
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.maps.model.LatLng
+import com.sunflower.pinpic.common.ImageUtils
 import com.sunflower.pinpic.common.Result
+import com.sunflower.pinpic.data.local.datastore.DataStoreManager
 import com.sunflower.pinpic.domain.map.BBox
 import com.sunflower.pinpic.domain.map.ClusterNode
 import com.sunflower.pinpic.domain.map.GeoClusterIndex
@@ -15,29 +18,33 @@ import com.sunflower.pinpic.domain.model.ClusterPoint
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.domain.repository.PhotosRepository
 import com.sunflower.pinpic.domain.usecase.SavePhotosUseCase
-import android.content.Context
-import android.net.Uri
-import android.os.Environment
-import com.google.android.gms.maps.model.LatLng
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 
-private const val REBUILD_INTERVAL_MS = 5_000L
+private const val REBUILD_INTERVAL_MS = 100_000L
 
 data class CameraState(val bbox: BBox, val zoom: Int)
 
@@ -45,7 +52,8 @@ data class MapUiState(
     val isLoading: Boolean = true,
     val visibleNodes: List<ClusterNode> = emptyList(),
     val errorMessage: String? = null,
-    var newNodes: Int = 0
+    var newNodes: Int = 0,
+    val isGeneratingDummies: Boolean = false
 )
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -53,7 +61,8 @@ data class MapUiState(
 class MapViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val photosRepository: PhotosRepository,
-    private val savePhotosUseCase: SavePhotosUseCase
+    private val savePhotosUseCase: SavePhotosUseCase,
+    private val dataStoreManager: DataStoreManager
 ) : ViewModel() {
 
     private var index: GeoClusterIndex? = null
@@ -63,6 +72,8 @@ class MapViewModel @Inject constructor(
     private val camera = MutableStateFlow<CameraState?>(null)
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState
+    
+    val themeModeFlow = dataStoreManager.themeModeFlow
 
     init {
         var initialBuildStarted = false
@@ -331,5 +342,41 @@ class MapViewModel @Inject constructor(
             count = count,
             payload = this
         )
+    }
+
+    fun generateDummyPoints(count: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(isGeneratingDummies = true) }
+            val timeFormatter = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+            val now = java.util.Date()
+            val dateStr = "2026-01-01"
+
+            for (i in 0 until count) {
+                val lat = kotlin.random.Random.nextDouble(-90.0, 90.0)
+                val lng = kotlin.random.Random.nextDouble(-180.0, 180.0)
+
+                val cluster = com.sunflower.pinpic.domain.model.ClusterPoint(
+                    lat = lat,
+                    lng = lng,
+                    count = 1,
+                    thumbnailUri = "https://picsum.photos/200"
+                )
+                val res = photosRepository.saveClusterPoint(cluster)
+                if (res is com.sunflower.pinpic.common.Result.Success) {
+                    val photo = com.sunflower.pinpic.domain.model.Photo(
+                        lat = lat,
+                        lng = lng,
+                        date = dateStr,
+                        time = timeFormatter.format(now),
+                        locationName = "Dummy Location $i",
+                        uri = null,
+                        url = "https://picsum.photos/200",
+                        clusterId = res.data
+                    )
+                    photosRepository.savePhoto(photo)
+                }
+            }
+            _uiState.update { it.copy(isGeneratingDummies = false) }
+        }
     }
 }

@@ -1,11 +1,46 @@
 package com.sunflower.pinpic.presentation.map
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.LocationManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -15,74 +50,47 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Surface
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.TextButton
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
-import kotlinx.coroutines.launch
-import com.sunflower.pinpic.domain.model.Photo
-import com.sunflower.pinpic.presentation.gallery.GalleryContent
-import com.sunflower.pinpic.presentation.gallery.GalleryUiState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.maps.android.compose.CameraMoveStartedReason
 import com.google.maps.android.compose.CameraPositionState
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.CameraMoveStartedReason
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
+import com.sunflower.pinpic.MainActivity
 import com.sunflower.pinpic.R
 import com.sunflower.pinpic.domain.map.BBox
 import com.sunflower.pinpic.domain.map.ClusterNode
+import com.sunflower.pinpic.domain.model.Photo
+import com.sunflower.pinpic.presentation.gallery.GalleryContent
+import com.sunflower.pinpic.presentation.gallery.GalleryUiState
+import com.sunflower.pinpic.presentation.map.components.MarkerIconFactory
 import com.sunflower.pinpic.presentation.map.components.PhotoMapMarker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
-import com.google.maps.android.compose.MapUiSettings
-import android.Manifest
-import android.content.Context
-import android.content.pm.PackageManager
-import android.location.LocationManager
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.core.content.ContextCompat
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.sunflower.pinpic.presentation.map.components.MarkerIconFactory
 
 private const val MARKER_CHUNK_SIZE = 10
 private const val MARKER_CHUNK_DELAY_MS = 32L
@@ -90,7 +98,9 @@ private const val MARKER_CHUNK_DELAY_MS = 32L
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
-    viewModel: MapViewModel = hiltViewModel()
+    viewModel: MapViewModel = hiltViewModel(),
+    onBackClick: () -> Unit,
+    onCameraClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -169,7 +179,15 @@ fun MapScreen(
         }
     }
 
-    val mapJson = if (isSystemInDarkTheme()) {
+//    val themeMode by viewModel.themeModeFlow.collectAsState(initial = "LIGHT")
+//    val isDarkTheme = when (themeMode) {
+//        "DARK" -> true
+//        "SYSTEM" -> isSystemInDarkTheme()
+//        else -> false
+//    }
+    val isDarkTheme = MainActivity.darkTheme
+
+    val mapJson = if (isDarkTheme) {
         R.raw.dark
     } else {
         R.raw.light
@@ -273,7 +291,7 @@ fun MapScreen(
                     if (node.isCluster) {
                         Marker(
                             state = rememberMarkerState(position = LatLng(node.lat, node.lon)),
-                            icon =iconFactory.cluster(node.count),
+                            icon = iconFactory.cluster(node.count),
                             anchor = Offset(0.5f, 0.5f),
                             flat = true,
                             onClick = {
@@ -308,7 +326,80 @@ fun MapScreen(
                 )
             }
         }
+        Surface(
+            modifier = Modifier
+                .systemBarsPadding()
+                .align(Alignment.TopStart)
+                .padding(top = 24.dp, start = 16.dp)
+                .size(48.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 4.dp
+        ) {
+            IconButton(onClick = onBackClick) {
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
 
+//        var dummyCount by remember { mutableStateOf("10") }
+//
+//        Surface(
+//            modifier = Modifier
+//                .systemBarsPadding()
+//                .align(Alignment.TopEnd)
+//                .padding(top = 24.dp, end = 16.dp)
+//                .width(160.dp),
+//            shape = RoundedCornerShape(8.dp),
+//            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+//            shadowElevation = 4.dp
+//        ) {
+//            Column(modifier = Modifier.padding(8.dp)) {
+//                OutlinedTextField(
+//                    value = dummyCount,
+//                    onValueChange = { dummyCount = it },
+//                    label = { Text("Points") },
+//                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+//                    modifier = Modifier.fillMaxWidth()
+//                )
+//                Spacer(modifier = Modifier.height(8.dp))
+//                Button(
+//                    onClick = {
+//                        val count = dummyCount.toIntOrNull() ?: 0
+//                        if (count > 0) {
+//                            viewModel.generateDummyPoints(count)
+//                        }
+//                    },
+//                    modifier = Modifier.fillMaxWidth(),
+//                    enabled = !uiState.isGeneratingDummies
+//                ) {
+//                    if (uiState.isGeneratingDummies) {
+//                        CircularProgressIndicator(
+//                            modifier = Modifier.size(24.dp),
+//                            color = MaterialTheme.colorScheme.onPrimary,
+//                            strokeWidth = 2.dp
+//                        )
+//                    } else {
+//                        Text("Build")
+//                    }
+//                }
+//            }
+//        }
+
+        FloatingActionButton(
+            onClick = onCameraClick,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 104.dp, end = 16.dp),
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = CircleShape
+        ) {
+            Icon(Icons.Outlined.CameraAlt, contentDescription = "Camera")
+        }
         FloatingActionButton(
             onClick = {
                 val hasPerm = ContextCompat.checkSelfPermission(
@@ -329,13 +420,17 @@ fun MapScreen(
             },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 120.dp, end = 16.dp),
+                .padding(bottom = 32.dp, end = 16.dp),
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.primary,
             shape = CircleShape
         ) {
             Icon(Icons.Filled.MyLocation, contentDescription = "Current Location")
         }
+
+
+
+
 
         if (selectedMenuNode != null) {
             val node = selectedMenuNode!!
@@ -458,9 +553,36 @@ fun MapScreen(
     }
 
     if (showBottomSheet) {
+        val isExpanded = bottomSheetState.targetValue == SheetValue.Expanded
         ModalBottomSheet(
+            containerColor = MaterialTheme.colorScheme.background,
             onDismissRequest = { showBottomSheet = false },
-            sheetState = bottomSheetState
+            sheetState = bottomSheetState,
+            dragHandle = {
+                if (isExpanded) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 8.dp)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                coroutineScope.launch { bottomSheetState.hide() }
+                                    .invokeOnCompletion {
+                                        if (!bottomSheetState.isVisible) {
+                                            showBottomSheet = false
+                                        }
+                                    }
+                            },
+                            modifier = Modifier.align(Alignment.CenterStart)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                    }
+                } else {
+                    BottomSheetDefaults.DragHandle()
+                }
+            }
         ) {
             GalleryContent(
                 uiState = bottomSheetUiState,
