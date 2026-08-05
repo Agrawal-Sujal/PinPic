@@ -25,6 +25,7 @@ class DataStoreManager @Inject constructor(
         val PICTURE_URL = stringPreferencesKey("picture_url")
         val FULL_NAME = stringPreferencesKey("full_name")
         val MOBILE_NUMBER = stringPreferencesKey("mobile_number")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
     }
 
     suspend fun saveAuthInfo(jwt: String, username: String?, email: String?, pictureUrl: String?) {
@@ -78,5 +79,15 @@ class DataStoreManager @Inject constructor(
 
     val mobileNumberFlow: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[MOBILE_NUMBER]
+    }
+
+    val themeModeFlow: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[THEME_MODE]
+    }
+
+    suspend fun saveThemeMode(mode: String) {
+        context.dataStore.edit { prefs ->
+            prefs[THEME_MODE] = mode
+        }
     }
 }
