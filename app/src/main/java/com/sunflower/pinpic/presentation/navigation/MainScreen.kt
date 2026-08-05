@@ -1,4 +1,4 @@
-package com.sunflower.pinpic.presentation.main
+package com.sunflower.pinpic.presentation.navigation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,17 +32,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
@@ -50,43 +48,71 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.ui.NavDisplay
 import com.sunflower.pinpic.presentation.gallery.GalleryScreen
 import com.sunflower.pinpic.presentation.map.MapScreen
-import com.sunflower.pinpic.presentation.profile.ProfileScreen
 
-
-enum class MainTab(val icon: ImageVector, val filledIcon: ImageVector, val label: String) {
-    Map(Icons.Outlined.LocationOn, Icons.Filled.LocationOn, "Map"),
-    Gallery(Icons.Outlined.PhotoLibrary, Icons.Filled.PhotoLibrary, "Gallery"),
-    Chat(Icons.Outlined.Chat, Icons.Filled.Chat, "Chat"),
-    Profile(Icons.Outlined.Person, Icons.Filled.Person, "Profile")
+sealed class MainTab(val icon: ImageVector, val filledIcon: ImageVector, val label: String) {
+    data object Map : MainTab(Icons.Outlined.LocationOn, Icons.Filled.LocationOn, "Map")
+    data object Gallery : MainTab(Icons.Outlined.PhotoLibrary, Icons.Filled.PhotoLibrary, "Gallery")
+    data object Chat : MainTab(Icons.Outlined.Chat, Icons.Filled.Chat, "Chat")
+    data object Profile : MainTab(Icons.Outlined.Person, Icons.Filled.Person, "Profile")
 }
 
 @Composable
 fun MainScreen(
-    onNavigateToCamera: () -> Unit
+    onNavigateToCamera: () -> Unit,
+    onNavigateToSettings: () -> Unit = {},
+    currentTab: MutableState<MainTab?>
 ) {
-    var currentTab by remember { mutableStateOf(MainTab.Gallery) }
-
+    val backStack = remember { mutableStateListOf<MainTab>(MainTab.Gallery) }
+    currentTab.value = backStack.lastOrNull() ?: MainTab.Gallery
     Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            when (currentTab) {
-                MainTab.Map -> MapScreen()
-                MainTab.Gallery -> GalleryScreen()
-                MainTab.Chat -> DummyScreen("Chat Screen")
-                MainTab.Profile -> ProfileScreen()
-            }
-        }
+        NavDisplay(
+            backStack = backStack,
+            onBack = {
+                backStack.removeLastOrNull()
+                if (currentTab != MainTab.Gallery) backStack.add(MainTab.Gallery)
+            },
+            entryProvider = entryProvider {
+                entry<MainTab.Map> {
+                        MapScreen(
+                            onBackClick = {
+                                backStack.removeLastOrNull()
+                                backStack.add(MainTab.Gallery)
+                            },
+                            onCameraClick = onNavigateToCamera
+                        )
 
-        Box(modifier = Modifier.align(Alignment.BottomCenter)) {
-            CustomFloatingBottomNavigation(
-                currentTab = currentTab,
-                onTabSelected = { currentTab = it },
-                onCameraClick = onNavigateToCamera
-            )
+                }
+                entry<MainTab.Gallery> {
+                    GalleryScreen(
+                        onNavigateToSettings = onNavigateToSettings
+                    )
+                }
+                entry<MainTab.Chat> {
+                    DummyScreen("Coming Soon")
+                }
+                entry<MainTab.Profile> {
+                    DummyScreen("Coming Soon")
+                }
+            }
+        )
+
+        if (currentTab.value != MainTab.Map) {
+            Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+                CustomFloatingBottomNavigation(
+                    currentTab = currentTab.value!!,
+                    onTabSelected = { tab ->
+                        if (currentTab != tab) {
+                            if (tab == MainTab.Gallery) backStack.clear()
+                            backStack.add(tab)
+                        }
+                    },
+                    onCameraClick = onNavigateToCamera
+                )
+            }
         }
     }
 }
@@ -110,7 +136,11 @@ fun CustomFloatingBottomNavigation(
                 .fillMaxWidth()
                 .height(64.dp)
                 .align(Alignment.BottomCenter)
-                .border(width = 0.5.dp, color = MaterialTheme.colorScheme.outline, shape = BottomNavCutoutShape())
+                .border(
+                    width = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outline,
+                    shape = BottomNavCutoutShape()
+                )
                 .shadow(elevation = 1.dp, shape = BottomNavCutoutShape())
                 .background(
                     color = MaterialTheme.colorScheme.surface,
@@ -256,9 +286,12 @@ class BottomNavCutoutShape : Shape {
 
 @Composable
 fun DummyScreen(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.headlineMedium,
-        color = MaterialTheme.colorScheme.onBackground
-    )
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            modifier = Modifier,
+            text = title,
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+    }
 }
