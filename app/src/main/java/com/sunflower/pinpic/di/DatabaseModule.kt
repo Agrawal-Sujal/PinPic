@@ -3,6 +3,7 @@ package com.sunflower.pinpic.di
 import android.content.Context
 import androidx.room.Room
 import com.sunflower.pinpic.data.local.AppDatabase
+import com.sunflower.pinpic.data.local.dao.LocationInfoDao
 import com.sunflower.pinpic.data.local.dao.PhotoDao
 import dagger.Module
 import dagger.Provides
@@ -24,6 +25,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "pinpic_db"
         )
+            .fallbackToDestructiveMigration(true)
             .build()
     }
 
@@ -31,5 +33,11 @@ object DatabaseModule {
     @Singleton
     fun providePhotoDao(database: AppDatabase): PhotoDao {
         return database.photoDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideLocationInfoDao(database: AppDatabase): LocationInfoDao {
+        return database.locationInfoDao()
     }
 }
