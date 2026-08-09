@@ -1,5 +1,6 @@
 package com.sunflower.pinpic.presentation.map
 
+
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -7,12 +8,15 @@ import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -21,11 +25,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -34,13 +41,15 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberStandardBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -81,19 +90,29 @@ import com.sunflower.pinpic.domain.map.ClusterNode
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.presentation.gallery.GalleryContent
 import com.sunflower.pinpic.presentation.gallery.GalleryUiState
+import com.sunflower.pinpic.presentation.map.components.AddPhotoBottomSheetContent
 import com.sunflower.pinpic.presentation.map.components.MarkerIconFactory
 import com.sunflower.pinpic.presentation.map.components.PhotoMapMarker
+import com.sunflower.pinpic.presentation.map.components.SelectedPhotoBottomCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val MARKER_CHUNK_SIZE = 10
 private const val MARKER_CHUNK_DELAY_MS = 32L
+
+enum class AddPhotoMode {
+    NONE,
+    SELECT_LOCATION,
+    LOCATION_SELECTED,
+    PHOTOS_SELECTED
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -132,12 +151,25 @@ fun MapScreen(
     var renderedNodes by remember { mutableStateOf<List<ClusterNode>>(emptyList()) }
 
     val coroutineScope = rememberCoroutineScope()
-    var showBottomSheet by remember { mutableStateOf(false) }
+    var showGallerySheet by remember { mutableStateOf(false) }
     var bottomSheetPhotos by remember { mutableStateOf<List<Photo>>(emptyList()) }
     var expandedDates by remember { mutableStateOf(emptySet<String>()) }
     var expandedLocations by remember { mutableStateOf(emptySet<String>()) }
     var selectedMenuNode by remember { mutableStateOf<ClusterNode?>(null) }
-    val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    var selectedSinglePhoto by remember { mutableStateOf<Photo?>(null) }
+    var selectedSinglePhotoLocation by remember {
+        mutableStateOf<com.sunflower.pinpic.domain.model.LocationInfo?>(
+            null
+        )
+    }
+    var isLoadingLocation by remember { mutableStateOf(false) }
+
+    val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
+        bottomSheetState = rememberStandardBottomSheetState(
+            initialValue = SheetValue.Hidden,
+            skipHiddenState = false
+        )
+    )
 
     val bottomSheetUiState = remember(bottomSheetPhotos, expandedDates, expandedLocations) {
         val byDate = bottomSheetPhotos.groupBy { it.date ?: "Unknown Date" }
@@ -151,18 +183,28 @@ fun MapScreen(
         )
     }
 
-    var longPressedLocation by remember { mutableStateOf<LatLng?>(null) }
+    var selectedAddPhotoLocation by remember { mutableStateOf<LatLng?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var dateText by remember { mutableStateOf("") }
+    var timeText by remember { mutableStateOf("") }
     var pendingUris by remember { mutableStateOf<List<android.net.Uri>>(emptyList()) }
+    var addPhotoMode by remember { mutableStateOf(AddPhotoMode.NONE) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
         if (uris.isNotEmpty()) {
-            pendingUris = uris
-            showDatePicker = true
-        } else {
-            longPressedLocation = null
+            val isFirstSelection = pendingUris.isEmpty()
+            pendingUris = (pendingUris + uris).distinct()
+            
+            if (isFirstSelection) {
+                val calendar = Calendar.getInstance()
+                dateText = SimpleDateFormat("dd/MM/yyyy", Locale.US).format(calendar.time)
+                timeText = SimpleDateFormat("hh:mm a", Locale.US).format(calendar.time)
+            }
+            
+            addPhotoMode = AddPhotoMode.PHOTOS_SELECTED
         }
     }
 
@@ -244,8 +286,12 @@ fun MapScreen(
 
     LaunchedEffect(cameraPositionState.isMoving) {
         if (cameraPositionState.isMoving && cameraPositionState.cameraMoveStartedReason == CameraMoveStartedReason.GESTURE) {
-            selectedMenuNode = null
-            longPressedLocation = null
+            if (addPhotoMode == AddPhotoMode.NONE) {
+                selectedMenuNode = null
+                selectedAddPhotoLocation = null
+                selectedSinglePhoto = null
+                selectedSinglePhotoLocation = null
+            }
         }
     }
 
@@ -264,86 +310,218 @@ fun MapScreen(
         )
     }
 
+    LaunchedEffect(showGallerySheet, selectedSinglePhoto, addPhotoMode) {
+        if (showGallerySheet || selectedSinglePhoto != null || addPhotoMode != AddPhotoMode.NONE) {
+            coroutineScope.launch { bottomSheetScaffoldState.bottomSheetState.expand() }
+        } else {
+            coroutineScope.launch { bottomSheetScaffoldState.bottomSheetState.hide() }
+        }
+    }
 
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        GoogleMap(
-            modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState,
-            properties = mapProperties,
-            uiSettings = mapUiSettings,
-            onMapLoaded = { reportCamera(cameraPositionState, viewModel) },
-            onMapClick = {
-                selectedMenuNode = null
-                longPressedLocation = null
-            },
-            onMapLongClick = { latLng ->
-                coroutineScope.launch {
-//                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
-                    longPressedLocation = latLng
-                }
-            }
-        ) {
-            reportCamera(cameraPositionState, viewModel)
-
-            renderedNodes.forEach { node ->
-                key(node.id) {
-                    if (node.isCluster) {
-                        Marker(
-                            state = rememberMarkerState(position = LatLng(node.lat, node.lon)),
-                            icon = iconFactory.cluster(node.count),
-                            anchor = Offset(0.5f, 0.5f),
-                            flat = true,
-                            onClick = {
-                                selectedMenuNode = node
-                                true
+    BottomSheetScaffold(
+        scaffoldState = bottomSheetScaffoldState,
+        sheetPeekHeight = 0.dp,
+        sheetSwipeEnabled = showGallerySheet || selectedSinglePhoto != null, // Only allow swipe to dismiss for gallery and single photo
+        sheetContainerColor = MaterialTheme.colorScheme.background,
+        sheetDragHandle = { BottomSheetDefaults.DragHandle() },
+        sheetContent = {
+            if (showGallerySheet) {
+                GalleryContent(
+                    uiState = bottomSheetUiState,
+                    onToggleDate = { date ->
+                        expandedDates =
+                            if (expandedDates.contains(date)) expandedDates - date else expandedDates + date
+                    },
+                    onToggleLocation = { loc ->
+                        expandedLocations =
+                            if (expandedLocations.contains(loc)) expandedLocations - loc else expandedLocations + loc
+                    },
+                    onDeletePhotos = { photos ->
+                        viewModel.deletePhotos(photos)
+                        bottomSheetPhotos = bottomSheetPhotos.filter { it !in photos }
+                        if (bottomSheetPhotos.isEmpty()) {
+                            showGallerySheet = false
+                        }
+                    },
+                    allPhotos = bottomSheetPhotos,
+                    allowSelection = false
+                )
+            } else if (selectedSinglePhoto != null) {
+                SelectedPhotoBottomCard(
+                    photo = selectedSinglePhoto!!,
+                    locationInfo = selectedSinglePhotoLocation,
+                    isLoadingLocation = isLoadingLocation,
+                    onViewPhotoClick = {
+                        val photo = selectedSinglePhoto!!
+                        selectedSinglePhoto = null
+                        bottomSheetPhotos = listOf(photo)
+                        showGallerySheet = true
+                    },
+                    onMenuClick = {
+                        // TODO: Implement menu action
+                    },
+                    modifier = Modifier.padding(bottom = 24.dp)
+                )
+            } else if (addPhotoMode != AddPhotoMode.NONE) {
+                AddPhotoBottomSheetContent(
+                    addPhotoMode = addPhotoMode,
+                    locationInfo = selectedSinglePhotoLocation,
+                    isLoadingLocation = isLoadingLocation,
+                    pendingUris = pendingUris,
+                    onSelectPhotosClick = {
+                        photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    },
+                    dateText = dateText,
+                    onDateTextChange = { dateText = it },
+                    timeText = timeText,
+                    onTimeTextChange = { timeText = it },
+                    onDatePickerClick = { showDatePicker = true },
+                    onTimePickerClick = { showTimePicker = true },
+                    onNextClick = {
+                        if (selectedAddPhotoLocation != null) {
+                            val finalDateStr = try {
+                                if (dateText.isNotBlank()) {
+                                    val parsedDate = SimpleDateFormat("dd/MM/yyyy", Locale.US).parse(dateText)
+                                    if (parsedDate != null) {
+                                        SimpleDateFormat("MMMM dd, yyyy", Locale.US).format(parsedDate)
+                                    } else {
+                                        dateText
+                                    }
+                                } else null
+                            } catch (_: Exception) {
+                                dateText.ifBlank { null }
                             }
-                        )
-                    } else {
-                        PhotoMapMarker(
-                            node = node,
-                            viewModel = viewModel,
-                            onClick = {
-                                showBottomSheet = true
-                                coroutineScope.launch {
-                                    val photos = viewModel.getPhotosForNode(node.id)
-                                    bottomSheetPhotos = photos
-                                }
 
-                            },
-                            color = MaterialTheme.colorScheme.secondary
-                        )
+                            viewModel.importPhotos(
+                                context,
+                                pendingUris,
+                                selectedAddPhotoLocation!!,
+                                finalDateStr,
+                                timeText.ifBlank { null }
+                            )
+                        }
+                        addPhotoMode = AddPhotoMode.NONE
+                        selectedAddPhotoLocation = null
+                        selectedSinglePhotoLocation = null
+                        pendingUris = emptyList()
+                        dateText = ""
+                        timeText = ""
+                    }
+                )
+            } else {
+                Spacer(modifier = Modifier.height(1.dp))
+            }
+        }
+    ) { paddingValues ->
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)) {
+            GoogleMap(
+                modifier = Modifier.fillMaxSize(),
+                cameraPositionState = cameraPositionState,
+                properties = mapProperties,
+                uiSettings = mapUiSettings,
+                onMapLoaded = { reportCamera(cameraPositionState, viewModel) },
+                onMapClick = { latLng ->
+                    if (addPhotoMode == AddPhotoMode.SELECT_LOCATION || addPhotoMode == AddPhotoMode.LOCATION_SELECTED) {
+                        coroutineScope.launch {
+                            selectedAddPhotoLocation = latLng
+                            isLoadingLocation = true
+                            addPhotoMode = AddPhotoMode.LOCATION_SELECTED
+                            selectedSinglePhotoLocation =
+                                viewModel.fetchLocationInfo(latLng.latitude, latLng.longitude)
+                            isLoadingLocation = false
+                        }
+                    } else if (addPhotoMode == AddPhotoMode.NONE) {
+                        selectedMenuNode = null
+                        selectedAddPhotoLocation = null
+                        selectedSinglePhoto = null
+                        selectedSinglePhotoLocation = null
                     }
                 }
-            }
+            ) {
+                reportCamera(cameraPositionState, viewModel)
 
-            longPressedLocation?.let { latLng ->
-                val markerState = rememberMarkerState(position = latLng)
-                markerState.position = latLng
-                Marker(
-                    state = markerState,
-                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
-                )
+                renderedNodes.forEach { node ->
+                    key(node.id) {
+                        if (node.isCluster) {
+                            Marker(
+                                state = rememberMarkerState(position = LatLng(node.lat, node.lon)),
+                                icon = iconFactory.cluster(node.count),
+                                anchor = Offset(0.5f, 0.5f),
+                                flat = true,
+                                onClick = {
+                                    selectedMenuNode = node
+                                    true
+                                }
+                            )
+                        } else {
+                            PhotoMapMarker(
+                                node = node,
+                                viewModel = viewModel,
+                                onClick = {
+                                    coroutineScope.launch {
+                                        val photos = viewModel.getPhotosForNode(node.id)
+                                        if (photos.isNotEmpty()) {
+                                            showGallerySheet = false
+                                            addPhotoMode = AddPhotoMode.NONE
+                                            val photo = photos.first()
+                                            selectedSinglePhoto = photo
+                                            selectedSinglePhotoLocation = null
+                                            if (photo.lat != null && photo.lng != null) {
+                                                isLoadingLocation = true
+                                                selectedSinglePhotoLocation =
+                                                    viewModel.fetchLocationInfo(
+                                                        photo.lat,
+                                                        photo.lng
+                                                    )
+                                                isLoadingLocation = false
+                                            }
+                                        }
+                                    }
+                                },
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
+                }
+
+                selectedAddPhotoLocation?.let { latLng ->
+                    val markerState = rememberMarkerState(position = latLng)
+                    markerState.position = latLng
+                    Marker(
+                        state = markerState,
+                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
+                    )
+                }
             }
-        }
-        Surface(
-            modifier = Modifier
-                .systemBarsPadding()
-                .align(Alignment.TopStart)
-                .padding(top = 24.dp, start = 16.dp)
-                .size(48.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 4.dp
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.primary
-                )
+            Surface(
+                modifier = Modifier
+                    .systemBarsPadding()
+                    .align(Alignment.TopStart)
+                    .padding(top = 24.dp, start = 16.dp)
+                    .size(48.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 4.dp
+            ) {
+                IconButton(onClick = {
+                    if (addPhotoMode != AddPhotoMode.NONE) {
+                        addPhotoMode = AddPhotoMode.NONE
+                        selectedAddPhotoLocation = null
+                        selectedSinglePhotoLocation = null
+                        pendingUris = emptyList()
+                    } else {
+                        onBackClick()
+                    }
+                }) {
+                    Icon(
+                        imageVector = if (addPhotoMode != AddPhotoMode.NONE) Icons.Filled.Close else Icons.Filled.ArrowBack,
+                        contentDescription = if (addPhotoMode != AddPhotoMode.NONE) "Cancel" else "Back",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
-        }
 
 //        var dummyCount by remember { mutableStateOf("10") }
 //
@@ -389,258 +567,189 @@ fun MapScreen(
 //            }
 //        }
 
-        FloatingActionButton(
-            onClick = onCameraClick,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 104.dp, end = 16.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            shape = CircleShape
-        ) {
-            Icon(Icons.Outlined.CameraAlt, contentDescription = "Camera")
-        }
-        FloatingActionButton(
-            onClick = {
-                val hasPerm = ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED ||
-                        ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.ACCESS_COARSE_LOCATION
-                        ) == PackageManager.PERMISSION_GRANTED
-                hasLocationPermission = hasPerm
-
-                if (hasPerm) {
-                    moveToCurrentLocation()
-                } else {
-                    locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 32.dp, end = 16.dp),
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.primary,
-            shape = CircleShape
-        ) {
-            Icon(Icons.Filled.MyLocation, contentDescription = "Current Location")
-        }
-
-
-
-
-
-        if (selectedMenuNode != null) {
-            val node = selectedMenuNode!!
-            var popupSize by remember { mutableStateOf(IntSize.Zero) }
-
-            Box(
+            Column(
                 modifier = Modifier
-                    .offset {
-                        val projection = cameraPositionState.projection
-                        val point = projection?.toScreenLocation(LatLng(node.lat, node.lon))
-                        if (point != null) {
-                            IntOffset(
-                                x = point.x - (popupSize.width / 2),
-                                y = point.y - popupSize.height - 50
-                            )
-                        } else {
-                            IntOffset.Zero
-                        }
-                    }
-                    .onGloballyPositioned { coordinates ->
-                        popupSize = coordinates.size
-                    }
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.End
             ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    shadowElevation = 8.dp,
-                    color = MaterialTheme.colorScheme.surface
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .width(IntrinsicSize.Max)
-                            .padding(vertical = 8.dp)
+                AnimatedVisibility(visible = addPhotoMode == AddPhotoMode.NONE) {
+                    FloatingActionButton(
+                        onClick = {
+                            showGallerySheet = false
+                            selectedSinglePhoto = null
+                            addPhotoMode = AddPhotoMode.SELECT_LOCATION
+                        },
+                        modifier = Modifier.padding(end = 16.dp, bottom = 16.dp),
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shape = CircleShape
                     ) {
-                        Text(
-                            text = "Zoom",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    cameraPositionState.position = CameraPosition.fromLatLngZoom(
-                                        LatLng(node.lat, node.lon),
-                                        cameraPositionState.position.zoom + 2f
-                                    )
-                                    selectedMenuNode = null
-                                }
-                                .padding(horizontal = 24.dp, vertical = 10.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                        Text(
-                            text = "View photos",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    coroutineScope.launch {
-                                        bottomSheetPhotos = viewModel.getPhotosForNode(node.id)
-                                        showBottomSheet = true
-                                    }
-                                    selectedMenuNode = null
-                                }
-                                .padding(horizontal = 24.dp, vertical = 10.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.labelLarge
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = "Add Photo"
                         )
                     }
                 }
-            }
-        }
 
-        if (longPressedLocation != null && !showDatePicker) {
-            val latLng = longPressedLocation!!
-            var popupSize by remember { mutableStateOf(IntSize.Zero) }
-
-            Box(
-                modifier = Modifier
-                    .offset {
-                        val projection = cameraPositionState.projection
-                        val point = projection?.toScreenLocation(latLng)
-                        if (point != null) {
-                            IntOffset(
-                                x = point.x - (popupSize.width / 2),
-                                y = point.y - popupSize.height - 100
-                            )
-                        } else {
-                            IntOffset.Zero
-                        }
-                    }
-                    .onGloballyPositioned { coordinates ->
-                        popupSize = coordinates.size
-                    }
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    shadowElevation = 8.dp,
-                    color = MaterialTheme.colorScheme.surface
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .width(IntrinsicSize.Max)
-                            .padding(vertical = 8.dp)
+                AnimatedVisibility(visible = addPhotoMode == AddPhotoMode.NONE) {
+                    FloatingActionButton(
+                        onClick = onCameraClick,
+                        modifier = Modifier.padding(end = 16.dp),
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shape = CircleShape
                     ) {
-                        Text(
-                            text = "Add image",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    photoPickerLauncher.launch(
-                                        PickVisualMediaRequest(
-                                            ActivityResultContracts.PickVisualMedia.ImageOnly
-                                        )
-                                    )
-                                }
-                                .padding(horizontal = 24.dp, vertical = 10.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.labelLarge
+                        Icon(
+                            Icons.Outlined.CameraAlt,
+                            contentDescription = "Camera"
                         )
                     }
                 }
-            }
-        }
-    }
 
-    if (showBottomSheet) {
-        val isExpanded = bottomSheetState.targetValue == SheetValue.Expanded
-        ModalBottomSheet(
-            containerColor = MaterialTheme.colorScheme.background,
-            onDismissRequest = { showBottomSheet = false },
-            sheetState = bottomSheetState,
-            dragHandle = {
-                if (isExpanded) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 8.dp)
+                AnimatedVisibility(visible = addPhotoMode == AddPhotoMode.NONE) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                AnimatedVisibility(visible = addPhotoMode == AddPhotoMode.NONE) {
+                    FloatingActionButton(
+                        onClick = {
+                            val hasPerm = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.ACCESS_FINE_LOCATION
+                            ) == PackageManager.PERMISSION_GRANTED ||
+                                    ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    ) == PackageManager.PERMISSION_GRANTED
+                            hasLocationPermission = hasPerm
+
+                            if (hasPerm) {
+                                moveToCurrentLocation()
+                            } else {
+                                locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                            }
+                        },
+                        modifier = Modifier.padding(end = 16.dp),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        shape = CircleShape
                     ) {
-                        IconButton(
-                            onClick = {
-                                coroutineScope.launch { bottomSheetState.hide() }
-                                    .invokeOnCompletion {
-                                        if (!bottomSheetState.isVisible) {
-                                            showBottomSheet = false
-                                        }
-                                    }
-                            },
-                            modifier = Modifier.align(Alignment.CenterStart)
+                        Icon(
+                            Icons.Filled.MyLocation,
+                            contentDescription = "Current Location"
+                        )
+                    }
+                }
+
+
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            if (selectedMenuNode != null) {
+                val node = selectedMenuNode!!
+                var popupSize by remember { mutableStateOf(IntSize.Zero) }
+
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            val projection = cameraPositionState.projection
+                            val point = projection?.toScreenLocation(LatLng(node.lat, node.lon))
+                            if (point != null) {
+                                IntOffset(
+                                    x = point.x - (popupSize.width / 2),
+                                    y = point.y - popupSize.height - 50
+                                )
+                            } else {
+                                IntOffset.Zero
+                            }
+                        }
+                        .onGloballyPositioned { coordinates ->
+                            popupSize = coordinates.size
+                        }
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        shadowElevation = 8.dp,
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .width(IntrinsicSize.Max)
+                                .padding(vertical = 8.dp)
                         ) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
+                            Text(
+                                text = "Zoom",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        cameraPositionState.position =
+                                            CameraPosition.fromLatLngZoom(
+                                                LatLng(node.lat, node.lon),
+                                                cameraPositionState.position.zoom + 2f
+                                            )
+                                        selectedMenuNode = null
+                                    }
+                                    .padding(horizontal = 24.dp, vertical = 10.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                            Text(
+                                text = "View photos",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        coroutineScope.launch {
+                                            bottomSheetPhotos = viewModel.getPhotosForNode(node.id)
+                                            showGallerySheet = true
+                                            bottomSheetScaffoldState.bottomSheetState.expand()
+                                        }
+                                        selectedMenuNode = null
+                                    }
+                                    .padding(horizontal = 24.dp, vertical = 10.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.labelLarge
+                            )
                         }
                     }
-                } else {
-                    BottomSheetDefaults.DragHandle()
                 }
             }
-        ) {
-            GalleryContent(
-                uiState = bottomSheetUiState,
-                onToggleDate = { date ->
-                    expandedDates =
-                        if (expandedDates.contains(date)) expandedDates - date else expandedDates + date
-                },
-                onToggleLocation = { loc ->
-                    expandedLocations =
-                        if (expandedLocations.contains(loc)) expandedLocations - loc else expandedLocations + loc
-                },
-                onDeletePhotos = { photos ->
-                    viewModel.deletePhotos(photos)
-                    bottomSheetPhotos = bottomSheetPhotos.filter { it !in photos }
-                    if (bottomSheetPhotos.isEmpty()) {
-                        showBottomSheet = false
-                    }
-                },
-                allPhotos = bottomSheetPhotos,
-                allowSelection = false
-            )
+
+        } // End of Box
+    } // End of BottomSheetScaffold content
+
+    // Handle back button / swipe down on bottom sheet
+    LaunchedEffect(bottomSheetScaffoldState.bottomSheetState.currentValue) {
+        if (bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Hidden) {
+            showGallerySheet = false
+            selectedSinglePhoto = null
         }
     }
-
-    // Old custom popup Box removed in favor of MarkerInfoWindow
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState()
         DatePickerDialog(
             onDismissRequest = {
                 showDatePicker = false
-                longPressedLocation = null
-                pendingUris = emptyList()
             },
             confirmButton = {
                 TextButton(onClick = {
-                    showDatePicker = false
-                    datePickerState.selectedDateMillis?.let { millis ->
-                        val dateString =
-                            SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(millis))
-                        viewModel.importPhotos(
-                            context,
-                            pendingUris,
-                            longPressedLocation!!,
-                            dateString
-                        )
+                    val millis = datePickerState.selectedDateMillis
+                    if (millis != null) {
+                        dateText = SimpleDateFormat(
+                            "dd/MM/yyyy",
+                            Locale.US
+                        ).format(Date(millis))
                     }
-                    longPressedLocation = null
-                    pendingUris = emptyList()
+                    showDatePicker = false
                 }) {
-                    Text("OK")
+                    Text("Done")
                 }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showDatePicker = false
-                    longPressedLocation = null
-                    pendingUris = emptyList()
                 }) {
                     Text("Cancel")
                 }
@@ -649,9 +758,42 @@ fun MapScreen(
             DatePicker(state = datePickerState)
         }
     }
+
+    if (showTimePicker) {
+        val timePickerState = rememberTimePickerState()
+        AlertDialog(
+            onDismissRequest = {
+                showTimePicker = false
+            },
+            title = { Text("Select Time") },
+            text = {
+                TimePicker(state = timePickerState)
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val calendar = Calendar.getInstance().apply {
+                        set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                        set(Calendar.MINUTE, timePickerState.minute)
+                        set(Calendar.SECOND, 0)
+                    }
+                    timeText = SimpleDateFormat("hh:mm a", Locale.US).format(calendar.time)
+                    showTimePicker = false
+                }) {
+                    Text("Done")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showTimePicker = false
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
-private fun reportCamera(cameraPositionState: CameraPositionState, viewModel: MapViewModel) {
+fun reportCamera(cameraPositionState: CameraPositionState, viewModel: MapViewModel) {
     val bounds = cameraPositionState.projection?.visibleRegion?.latLngBounds ?: return
     viewModel.onCameraIdle(
         CameraState(

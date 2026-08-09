@@ -4,6 +4,7 @@ package com.sunflower.pinpic.presentation.map
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.maps.model.LatLng
@@ -17,6 +18,7 @@ import com.sunflower.pinpic.domain.map.GeoPoint
 import com.sunflower.pinpic.domain.model.ClusterPoint
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.domain.repository.PhotosRepository
+import com.sunflower.pinpic.domain.usecase.GetLocationInfoUseCase
 import com.sunflower.pinpic.domain.usecase.SavePhotosUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -44,7 +46,7 @@ import java.util.Locale
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 
-private const val REBUILD_INTERVAL_MS = 100_000L
+private const val REBUILD_INTERVAL_MS = 5_000L
 
 data class CameraState(val bbox: BBox, val zoom: Int)
 
@@ -62,6 +64,7 @@ class MapViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val photosRepository: PhotosRepository,
     private val savePhotosUseCase: SavePhotosUseCase,
+    private val getLocationInfoUseCase: GetLocationInfoUseCase,
     private val dataStoreManager: DataStoreManager
 ) : ViewModel() {
 
@@ -262,18 +265,28 @@ class MapViewModel @Inject constructor(
         return directPhotos + clusteredPhotos
     }
 
+    suspend fun fetchLocationInfo(lat: Double, lon: Double): com.sunflower.pinpic.domain.model.LocationInfo? {
+        val result = getLocationInfoUseCase(lat, lon)
+        Log.d("TAG","Location Info ${result}")
+        return result.getOrNull()
+    }
+
     fun deletePhotos(photos: List<Photo>) {
         viewModelScope.launch {
             photosRepository.deletePhotos(photos)
         }
     }
 
-    fun importPhotos(context: Context, uris: List<Uri>, latLng: LatLng, dateStr: String) {
+    fun importPhotos(context: Context, uris: List<Uri>, latLng: LatLng, dateStr: String?, timeStr: String?) {
         viewModelScope.launch(Dispatchers.IO) {
             val resolver = context.contentResolver
-            val timeFormatter = SimpleDateFormat("HH:mm:ss", Locale.US)
+            val defaultTimeFormatter = SimpleDateFormat("HH:mm:ss", Locale.US)
+            val defaultDateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             val filePrefixFormatter = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
             val now = Date()
+            
+            val finalDateStr = dateStr ?: defaultDateFormatter.format(now)
+            val finalTimeStr = timeStr ?: defaultTimeFormatter.format(now)
 
             var createdClusterId: Long? = null
             val cluster = ClusterPoint(
@@ -302,8 +315,8 @@ class MapViewModel @Inject constructor(
                     val photo = Photo(
                         lat = latLng.latitude,
                         lng = latLng.longitude,
-                        date = dateStr,
-                        time = timeFormatter.format(now),
+                        date = finalDateStr,
+                        time = finalTimeStr,
                         locationName = null,
                         uri = destFile.absolutePath,
                         url = null,
@@ -347,23 +360,23 @@ class MapViewModel @Inject constructor(
     fun generateDummyPoints(count: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { it.copy(isGeneratingDummies = true) }
-            val timeFormatter = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
-            val now = java.util.Date()
+            val timeFormatter = SimpleDateFormat("HH:mm:ss", Locale.US)
+            val now = Date()
             val dateStr = "2026-01-01"
 
             for (i in 0 until count) {
                 val lat = kotlin.random.Random.nextDouble(-90.0, 90.0)
                 val lng = kotlin.random.Random.nextDouble(-180.0, 180.0)
 
-                val cluster = com.sunflower.pinpic.domain.model.ClusterPoint(
+                val cluster = ClusterPoint(
                     lat = lat,
                     lng = lng,
                     count = 1,
                     thumbnailUri = "https://picsum.photos/200"
                 )
                 val res = photosRepository.saveClusterPoint(cluster)
-                if (res is com.sunflower.pinpic.common.Result.Success) {
-                    val photo = com.sunflower.pinpic.domain.model.Photo(
+                if (res is Result.Success) {
+                    val photo = Photo(
                         lat = lat,
                         lng = lng,
                         date = dateStr,
