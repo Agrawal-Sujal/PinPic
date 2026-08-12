@@ -40,7 +40,20 @@ class GalleryViewModel @Inject constructor(
             photosRepository.getAllPhotosFlow().collect { result ->
                 when (result) {
                     is Result.Success -> {
-                        val groupedByDate = result.data.groupBy { it.date ?: "Unknown Date" }
+                        val groupedByDate = result.data.groupBy { photo ->
+                            val rawDate = photo.date ?: "Unknown Date"
+                            try {
+                                val parserLong = java.text.SimpleDateFormat("MMMM dd, yyyy", java.util.Locale.US)
+                                val parsed = parserLong.parse(rawDate)
+                                if (parsed != null) {
+                                    java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(parsed)
+                                } else {
+                                    rawDate
+                                }
+                            } catch(e: Exception) {
+                                rawDate
+                            }
+                        }
                         val groupedByLocation = result.data.groupBy { it.locationName ?: "Unknown Location" }
                         _uiState.value = _uiState.value.copy(
                             photosGroupedByDate = groupedByDate,

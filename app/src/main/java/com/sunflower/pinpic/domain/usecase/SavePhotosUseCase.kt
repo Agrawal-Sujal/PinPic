@@ -7,14 +7,26 @@ import com.sunflower.pinpic.domain.model.ClusterPoint
 import javax.inject.Inject
 
 class SavePhotosUseCase @Inject constructor(
-    private val repository: PhotosRepository
+    private val repository: PhotosRepository,
+    private val getLocationInfoUseCase: GetLocationInfoUseCase
 ) {
     suspend operator fun invoke(photos: List<Photo>,latitude: Double,longitude: Double): Result<Unit> {
+        val locationInfo = getLocationInfoUseCase(latitude, longitude).getOrNull()
+        val cityName = locationInfo?.city ?: "Unknown Location"
+
+        val updatedPhotos = photos.map { photo ->
+            if (photo.locationName == null) {
+                photo.copy(locationName = cityName)
+            } else {
+                photo
+            }
+        }
+
         val cluster = ClusterPoint(
             lat = latitude,
             lng = longitude,
-            count = photos.size
+            count = updatedPhotos.size
         )
-        return repository.saveClusterWithPhotos(cluster, photos)
+        return repository.saveClusterWithPhotos(cluster, updatedPhotos)
     }
 }

@@ -33,7 +33,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.CalendarToday
@@ -136,6 +135,7 @@ fun GalleryContent(
     modifier: Modifier = Modifier,
     allPhotos: List<Photo>,
     allowSelection: Boolean = true,
+    showHeader: Boolean = true,
     onNavigateToSettings: () -> Unit = {}
 ) {
     var selectedPhotoIndex by remember { mutableStateOf<Int?>(null) }
@@ -178,7 +178,7 @@ fun GalleryContent(
                 },
                 onDelete = { showDeleteConfirmDialog = true }
             )
-        } else {
+        } else if (showHeader) {
             // Top Bar
             Row(
                 modifier = Modifier
@@ -263,7 +263,7 @@ fun GalleryContent(
                         val expandedKeys = if (isLocationGroup) uiState.expandedLocations else uiState.expandedDates
 
                         val sortedKeys = if (isLocationGroup) {
-                            groupedData.keys.sorted()
+                            groupedData.keys.sortedByDescending { groupedData[it]?.size ?: 0 }
                         } else {
                             groupedData.keys.sortedDescending()
                         }
@@ -545,30 +545,30 @@ fun GalleryPhotoItem(
         )
 
         // Location Chip Overlay
-        if (photo.locationName != null) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.LocationOn,
-                    contentDescription = "Location",
-                    tint = Color.White,
-                    modifier = Modifier.size(12.dp)
-                )
-                Text(
-                    text = photo.locationName,
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall
-                )
-            }
-        }
+//        if (photo.locationName != null) {
+//            Row(
+//                modifier = Modifier
+//                    .align(Alignment.BottomStart)
+//                    .padding(8.dp)
+//                    .clip(RoundedCornerShape(50))
+//                    .background(Color.Black.copy(alpha = 0.5f))
+//                    .padding(horizontal = 8.dp, vertical = 4.dp),
+//                verticalAlignment = Alignment.CenterVertically,
+//                horizontalArrangement = Arrangement.spacedBy(4.dp)
+//            ) {
+//                Icon(
+//                    imageVector = Icons.Filled.LocationOn,
+//                    contentDescription = "Location",
+//                    tint = Color.White,
+//                    modifier = Modifier.size(12.dp)
+//                )
+//                Text(
+//                    text = photo.locationName,
+//                    color = Color.White,
+//                    style = MaterialTheme.typography.labelSmall
+//                )
+//            }
+//        }
 
         // Selection overlay
         if (isSelected) {

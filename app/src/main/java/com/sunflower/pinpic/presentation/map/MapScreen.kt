@@ -9,21 +9,19 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -33,6 +31,7 @@ import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -41,6 +40,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -65,8 +65,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -93,7 +92,6 @@ import com.sunflower.pinpic.presentation.gallery.GalleryUiState
 import com.sunflower.pinpic.presentation.map.components.AddPhotoBottomSheetContent
 import com.sunflower.pinpic.presentation.map.components.MarkerIconFactory
 import com.sunflower.pinpic.presentation.map.components.PhotoMapMarker
-import com.sunflower.pinpic.presentation.map.components.SelectedPhotoBottomCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -155,14 +153,15 @@ fun MapScreen(
     var bottomSheetPhotos by remember { mutableStateOf<List<Photo>>(emptyList()) }
     var expandedDates by remember { mutableStateOf(emptySet<String>()) }
     var expandedLocations by remember { mutableStateOf(emptySet<String>()) }
-    var selectedMenuNode by remember { mutableStateOf<ClusterNode?>(null) }
-    var selectedSinglePhoto by remember { mutableStateOf<Photo?>(null) }
+    var isClusterClick by remember { mutableStateOf(false) }
+    var selectedClusterPhotos by remember { mutableStateOf<List<Photo>?>(null) }
     var selectedSinglePhotoLocation by remember {
         mutableStateOf<com.sunflower.pinpic.domain.model.LocationInfo?>(
             null
         )
     }
     var isLoadingLocation by remember { mutableStateOf(false) }
+    var sheetHeightDp by remember { mutableStateOf(0.dp) }
 
     val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
         bottomSheetState = rememberStandardBottomSheetState(
@@ -284,12 +283,20 @@ fun MapScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        if (hasLocationPermission) {
+            moveToCurrentLocation()
+        } else {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
     LaunchedEffect(cameraPositionState.isMoving) {
         if (cameraPositionState.isMoving && cameraPositionState.cameraMoveStartedReason == CameraMoveStartedReason.GESTURE) {
             if (addPhotoMode == AddPhotoMode.NONE) {
-                selectedMenuNode = null
+                isClusterClick = false
                 selectedAddPhotoLocation = null
-                selectedSinglePhoto = null
+                selectedClusterPhotos = null
                 selectedSinglePhotoLocation = null
             }
         }
@@ -310,8 +317,8 @@ fun MapScreen(
         )
     }
 
-    LaunchedEffect(showGallerySheet, selectedSinglePhoto, addPhotoMode) {
-        if (showGallerySheet || selectedSinglePhoto != null || addPhotoMode != AddPhotoMode.NONE) {
+    LaunchedEffect(showGallerySheet, addPhotoMode) {
+        if (showGallerySheet || addPhotoMode != AddPhotoMode.NONE) {
             coroutineScope.launch { bottomSheetScaffoldState.bottomSheetState.expand() }
         } else {
             coroutineScope.launch { bottomSheetScaffoldState.bottomSheetState.hide() }
@@ -321,11 +328,18 @@ fun MapScreen(
     BottomSheetScaffold(
         scaffoldState = bottomSheetScaffoldState,
         sheetPeekHeight = 0.dp,
-        sheetSwipeEnabled = showGallerySheet || selectedSinglePhoto != null, // Only allow swipe to dismiss for gallery and single photo
+        sheetSwipeEnabled = showGallerySheet, // Only allow swipe to dismiss for gallery
         sheetContainerColor = MaterialTheme.colorScheme.background,
         sheetDragHandle = { BottomSheetDefaults.DragHandle() },
         sheetContent = {
-            if (showGallerySheet) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { coordinates ->
+                        sheetHeightDp = (coordinates.size.height / density).dp
+                    }
+            ) {
+                if (showGallerySheet) {
                 GalleryContent(
                     uiState = bottomSheetUiState,
                     onToggleDate = { date ->
@@ -345,22 +359,6 @@ fun MapScreen(
                     },
                     allPhotos = bottomSheetPhotos,
                     allowSelection = false
-                )
-            } else if (selectedSinglePhoto != null) {
-                SelectedPhotoBottomCard(
-                    photo = selectedSinglePhoto!!,
-                    locationInfo = selectedSinglePhotoLocation,
-                    isLoadingLocation = isLoadingLocation,
-                    onViewPhotoClick = {
-                        val photo = selectedSinglePhoto!!
-                        selectedSinglePhoto = null
-                        bottomSheetPhotos = listOf(photo)
-                        showGallerySheet = true
-                    },
-                    onMenuClick = {
-                        // TODO: Implement menu action
-                    },
-                    modifier = Modifier.padding(bottom = 24.dp)
                 )
             } else if (addPhotoMode != AddPhotoMode.NONE) {
                 AddPhotoBottomSheetContent(
@@ -383,7 +381,7 @@ fun MapScreen(
                                 if (dateText.isNotBlank()) {
                                     val parsedDate = SimpleDateFormat("dd/MM/yyyy", Locale.US).parse(dateText)
                                     if (parsedDate != null) {
-                                        SimpleDateFormat("MMMM dd, yyyy", Locale.US).format(parsedDate)
+                                        SimpleDateFormat("yyyy-MM-dd", Locale.US).format(parsedDate)
                                     } else {
                                         dateText
                                     }
@@ -411,6 +409,7 @@ fun MapScreen(
             } else {
                 Spacer(modifier = Modifier.height(1.dp))
             }
+            }
         }
     ) { paddingValues ->
         Box(modifier = Modifier
@@ -433,9 +432,9 @@ fun MapScreen(
                             isLoadingLocation = false
                         }
                     } else if (addPhotoMode == AddPhotoMode.NONE) {
-                        selectedMenuNode = null
+                        isClusterClick = false
                         selectedAddPhotoLocation = null
-                        selectedSinglePhoto = null
+                        selectedClusterPhotos = null
                         selectedSinglePhotoLocation = null
                     }
                 }
@@ -451,7 +450,14 @@ fun MapScreen(
                                 anchor = Offset(0.5f, 0.5f),
                                 flat = true,
                                 onClick = {
-                                    selectedMenuNode = node
+                                    coroutineScope.launch {
+                                        val photos = viewModel.getPhotosForNode(node.id)
+                                        if (photos.isNotEmpty()) {
+                                            selectedClusterPhotos = photos
+                                            selectedSinglePhotoLocation = null
+                                            isClusterClick = true
+                                        }
+                                    }
                                     true
                                 }
                             )
@@ -466,8 +472,9 @@ fun MapScreen(
                                             showGallerySheet = false
                                             addPhotoMode = AddPhotoMode.NONE
                                             val photo = photos.first()
-                                            selectedSinglePhoto = photo
+                                            selectedClusterPhotos = photos
                                             selectedSinglePhotoLocation = null
+                                            isClusterClick = false
                                             if (photo.lat != null && photo.lng != null) {
                                                 isLoadingLocation = true
                                                 selectedSinglePhotoLocation =
@@ -523,49 +530,49 @@ fun MapScreen(
                 }
             }
 
-//        var dummyCount by remember { mutableStateOf("10") }
-//
-//        Surface(
-//            modifier = Modifier
-//                .systemBarsPadding()
-//                .align(Alignment.TopEnd)
-//                .padding(top = 24.dp, end = 16.dp)
-//                .width(160.dp),
-//            shape = RoundedCornerShape(8.dp),
-//            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-//            shadowElevation = 4.dp
-//        ) {
-//            Column(modifier = Modifier.padding(8.dp)) {
-//                OutlinedTextField(
-//                    value = dummyCount,
-//                    onValueChange = { dummyCount = it },
-//                    label = { Text("Points") },
-//                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-//                    modifier = Modifier.fillMaxWidth()
-//                )
-//                Spacer(modifier = Modifier.height(8.dp))
-//                Button(
-//                    onClick = {
-//                        val count = dummyCount.toIntOrNull() ?: 0
-//                        if (count > 0) {
-//                            viewModel.generateDummyPoints(count)
-//                        }
-//                    },
-//                    modifier = Modifier.fillMaxWidth(),
-//                    enabled = !uiState.isGeneratingDummies
-//                ) {
-//                    if (uiState.isGeneratingDummies) {
-//                        CircularProgressIndicator(
-//                            modifier = Modifier.size(24.dp),
-//                            color = MaterialTheme.colorScheme.onPrimary,
-//                            strokeWidth = 2.dp
-//                        )
-//                    } else {
-//                        Text("Build")
-//                    }
-//                }
-//            }
-//        }
+        var dummyCount by remember { mutableStateOf("10") }
+
+        Surface(
+            modifier = Modifier
+                .systemBarsPadding()
+                .align(Alignment.TopEnd)
+                .padding(top = 24.dp, end = 16.dp)
+                .width(160.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+            shadowElevation = 4.dp
+        ) {
+            Column(modifier = Modifier.padding(8.dp)) {
+                OutlinedTextField(
+                    value = dummyCount,
+                    onValueChange = { dummyCount = it },
+                    label = { Text("Points") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val count = dummyCount.toIntOrNull() ?: 0
+                        if (count > 0) {
+                            viewModel.generateDummyPoints(count)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !uiState.isGeneratingDummies
+                ) {
+                    if (uiState.isGeneratingDummies) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Build")
+                    }
+                }
+            }
+        }
 
             Column(
                 modifier = Modifier
@@ -577,7 +584,7 @@ fun MapScreen(
                     FloatingActionButton(
                         onClick = {
                             showGallerySheet = false
-                            selectedSinglePhoto = null
+                            selectedClusterPhotos = null
                             addPhotoMode = AddPhotoMode.SELECT_LOCATION
                         },
                         modifier = Modifier.padding(end = 16.dp, bottom = 16.dp),
@@ -611,7 +618,7 @@ fun MapScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                AnimatedVisibility(visible = addPhotoMode == AddPhotoMode.NONE) {
+                AnimatedVisibility(visible = addPhotoMode != AddPhotoMode.PHOTOS_SELECTED) {
                     FloatingActionButton(
                         onClick = {
                             val hasPerm = ContextCompat.checkSelfPermission(
@@ -626,6 +633,27 @@ fun MapScreen(
 
                             if (hasPerm) {
                                 moveToCurrentLocation()
+                                
+                                if (addPhotoMode == AddPhotoMode.SELECT_LOCATION || addPhotoMode == AddPhotoMode.LOCATION_SELECTED) {
+                                    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                                    val location = try {
+                                        locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                                            ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                                    } catch (_: SecurityException) {
+                                        null
+                                    }
+                                    location?.let { loc ->
+                                        coroutineScope.launch {
+                                            val latLng = LatLng(loc.latitude, loc.longitude)
+                                            selectedAddPhotoLocation = latLng
+                                            isLoadingLocation = true
+                                            addPhotoMode = AddPhotoMode.LOCATION_SELECTED
+                                            selectedSinglePhotoLocation =
+                                                viewModel.fetchLocationInfo(latLng.latitude, latLng.longitude)
+                                            isLoadingLocation = false
+                                        }
+                                    }
+                                }
                             } else {
                                 locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                             }
@@ -644,77 +672,18 @@ fun MapScreen(
 
 
 
-                Spacer(modifier = Modifier.height(16.dp))
+                val bottomSpacerHeight by androidx.compose.animation.core.animateDpAsState(
+                    targetValue = if (addPhotoMode == AddPhotoMode.SELECT_LOCATION || addPhotoMode == AddPhotoMode.LOCATION_SELECTED) {
+                        sheetHeightDp + 52.dp
+                    } else {
+                        16.dp
+                    },
+                    label = "fabBottomPadding"
+                )
+                Spacer(modifier = Modifier.height(bottomSpacerHeight))
             }
 
-            if (selectedMenuNode != null) {
-                val node = selectedMenuNode!!
-                var popupSize by remember { mutableStateOf(IntSize.Zero) }
 
-                Box(
-                    modifier = Modifier
-                        .offset {
-                            val projection = cameraPositionState.projection
-                            val point = projection?.toScreenLocation(LatLng(node.lat, node.lon))
-                            if (point != null) {
-                                IntOffset(
-                                    x = point.x - (popupSize.width / 2),
-                                    y = point.y - popupSize.height - 50
-                                )
-                            } else {
-                                IntOffset.Zero
-                            }
-                        }
-                        .onGloballyPositioned { coordinates ->
-                            popupSize = coordinates.size
-                        }
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        shadowElevation = 8.dp,
-                        color = MaterialTheme.colorScheme.surface
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .width(IntrinsicSize.Max)
-                                .padding(vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = "Zoom",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        cameraPositionState.position =
-                                            CameraPosition.fromLatLngZoom(
-                                                LatLng(node.lat, node.lon),
-                                                cameraPositionState.position.zoom + 2f
-                                            )
-                                        selectedMenuNode = null
-                                    }
-                                    .padding(horizontal = 24.dp, vertical = 10.dp),
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                            Text(
-                                text = "View photos",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        coroutineScope.launch {
-                                            bottomSheetPhotos = viewModel.getPhotosForNode(node.id)
-                                            showGallerySheet = true
-                                            bottomSheetScaffoldState.bottomSheetState.expand()
-                                        }
-                                        selectedMenuNode = null
-                                    }
-                                    .padding(horizontal = 24.dp, vertical = 10.dp),
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
-                    }
-                }
-            }
 
         } // End of Box
     } // End of BottomSheetScaffold content
@@ -723,7 +692,47 @@ fun MapScreen(
     LaunchedEffect(bottomSheetScaffoldState.bottomSheetState.currentValue) {
         if (bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Hidden) {
             showGallerySheet = false
-            selectedSinglePhoto = null
+            selectedClusterPhotos = null
+        }
+    }
+
+    if (!selectedClusterPhotos.isNullOrEmpty()) {
+        val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = {
+                selectedClusterPhotos = null
+                selectedSinglePhotoLocation = null
+                isClusterClick = false
+            },
+            sheetState = sheetState,
+            dragHandle = null,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            com.sunflower.pinpic.presentation.map.components.SelectedClusterGallerySheet(
+                photos = selectedClusterPhotos!!,
+                locationInfo = selectedSinglePhotoLocation,
+                isLoadingLocation = isLoadingLocation,
+                showThumbnailAndLocation = !isClusterClick,
+                onClose = {
+                    coroutineScope.launch {
+                        sheetState.hide()
+                    }.invokeOnCompletion {
+                        if (!sheetState.isVisible) {
+                            selectedClusterPhotos = null
+                            selectedSinglePhotoLocation = null
+                            isClusterClick = false
+                        }
+                    }
+                },
+                onDeletePhotos = { photos ->
+                    viewModel.deletePhotos(photos)
+                    selectedClusterPhotos = selectedClusterPhotos?.filter { it !in photos }
+                    if (selectedClusterPhotos.isNullOrEmpty()) {
+                        selectedClusterPhotos = null
+                        selectedSinglePhotoLocation = null
+                    }
+                }
+            )
         }
     }
 

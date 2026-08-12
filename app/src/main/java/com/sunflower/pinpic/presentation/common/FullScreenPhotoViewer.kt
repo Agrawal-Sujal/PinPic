@@ -1,29 +1,62 @@
 package com.sunflower.pinpic.presentation.common
 
+import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import coil.compose.AsyncImage
 import com.sunflower.pinpic.domain.model.Photo
-import androidx.compose.ui.platform.LocalContext
-import android.widget.Toast
+import kotlinx.coroutines.launch
 import java.io.File
+import kotlin.math.abs
 
 @Composable
 fun FullScreenPhotoViewer(
@@ -39,7 +72,18 @@ fun FullScreenPhotoViewer(
     
     var showInfoDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showUiElements by remember { mutableStateOf(true) }
+    
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    // Drag to dismiss state
+    val offsetY = remember { Animatable(0f) }
+    val dismissThreshold = 600f
+
+    val progress = (abs(offsetY.value) / dismissThreshold).coerceIn(0f, 1f)
+    val scale = 1f - (progress * 0.2f)
+    val alpha = 1f - progress
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -51,62 +95,136 @@ fun FullScreenPhotoViewer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                .background(MaterialTheme.colorScheme.background.copy(alpha = alpha))
         ) {
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
-                val photo = photos[page]
-                val model = if (photo.uri != null) {
-                    File(photo.uri)
-                } else {
-                    photo.url
-                }
-                
-                AsyncImage(
-                    model = model,
-                    contentDescription = "Full Screen Photo",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            // Top Bar
-            Row(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 32.dp, start = 8.dp, end = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationY = offsetY.value
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragEnd = {
+                                coroutineScope.launch {
+                                    if (abs(offsetY.value) > dismissThreshold * 0.4f) {
+                                        onDismissRequest()
+                                    } else {
+                                        offsetY.animateTo(0f)
+                                    }
+                                }
+                            },
+                            onDragCancel = {
+                                coroutineScope.launch {
+                                    offsetY.animateTo(0f)
+                                }
+                            },
+                            onVerticalDrag = { change, dragAmount ->
+                                change.consume()
+                                coroutineScope.launch {
+                                    offsetY.snapTo(offsetY.value + dragAmount)
+                                }
+                            }
+                        )
+                    }
             ) {
-                IconButton(onClick = onDismissRequest) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = Color.White
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    val photo = photos[page]
+                    val model = if (photo.uri != null) {
+                        File(photo.uri)
+                    } else {
+                        photo.url
+                    }
+                    
+                    AsyncImage(
+                        model = model,
+                        contentDescription = "Full Screen Photo",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                showUiElements = !showUiElements
+                            }
                     )
                 }
-                
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    IconButton(onClick = { /* No-op as requested */ }) {
-                        Icon(imageVector = Icons.Outlined.Share, contentDescription = "Share", tint = Color.White)
+
+                // Top Bar
+                AnimatedVisibility(
+                    visible = showUiElements,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.align(Alignment.TopCenter)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            IconButton(onClick = onDismissRequest) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = "${pagerState.currentPage + 1}/${photos.size}",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
-                    IconButton(onClick = {
-                        val currentPhoto = photos[pagerState.currentPage]
-                        com.sunflower.pinpic.common.MediaStoreUtils.savePhotosToDevice(
-                            context,
-                            listOf(currentPhoto)
-                        )
-                        Toast.makeText(context, "Saved to device", Toast.LENGTH_SHORT).show()
-                    }) {
-                        Icon(imageVector = Icons.Outlined.Save, contentDescription = "Save", tint = Color.White)
-                    }
-                    IconButton(onClick = { showDeleteConfirmDialog = true }) {
-                        Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Delete", tint = Color.White)
-                    }
-                    IconButton(onClick = { showInfoDialog = true }) {
-                        Icon(imageVector = Icons.Outlined.Info, contentDescription = "Info", tint = Color.White)
+                }
+
+                // Bottom Bar
+                AnimatedVisibility(
+                    visible = showUiElements,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 8.dp)
+                            .padding(top = 16.dp, start = 16.dp, end = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        BottomBarAction(icon = Icons.Outlined.Share, text = "Share") {
+                            /* No-op as requested */
+                        }
+                        BottomBarAction(icon = Icons.Outlined.Save, text = "Save") {
+                            val currentPhoto = photos[pagerState.currentPage]
+                            com.sunflower.pinpic.common.MediaStoreUtils.savePhotosToDevice(
+                                context,
+                                listOf(currentPhoto)
+                            )
+                            Toast.makeText(context, "Saved to device", Toast.LENGTH_SHORT).show()
+                        }
+                        BottomBarAction(icon = Icons.Outlined.Delete, text = "Delete") {
+                            showDeleteConfirmDialog = true
+                        }
+                        BottomBarAction(icon = Icons.Outlined.Info, text = "Info") {
+                            showInfoDialog = true
+                        }
                     }
                 }
             }
@@ -138,6 +256,28 @@ fun FullScreenPhotoViewer(
         PhotoInfoDialog(
             photo = photos[pagerState.currentPage],
             onDismissRequest = { showInfoDialog = false }
+        )
+    }
+}
+
+@Composable
+fun BottomBarAction(icon: ImageVector, text: String, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(8.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = text,
+            tint = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }

@@ -288,6 +288,9 @@ class MapViewModel @Inject constructor(
             val finalDateStr = dateStr ?: defaultDateFormatter.format(now)
             val finalTimeStr = timeStr ?: defaultTimeFormatter.format(now)
 
+            val locationInfo = fetchLocationInfo(latLng.latitude, latLng.longitude)
+            val cityName = locationInfo?.city ?: "Unknown Location"
+
             var createdClusterId: Long? = null
             val cluster = ClusterPoint(
                 lat = latLng.latitude,
@@ -317,7 +320,7 @@ class MapViewModel @Inject constructor(
                         lng = latLng.longitude,
                         date = finalDateStr,
                         time = finalTimeStr,
-                        locationName = null,
+                        locationName = cityName,
                         uri = destFile.absolutePath,
                         url = null,
                         clusterId = createdClusterId
@@ -343,7 +346,8 @@ class MapViewModel @Inject constructor(
             id = "p_$id",
             lat = lat,
             lon = lng,
-            payload = this
+            payload = this,
+            thumbnailUri = uri
         )
     }
 
@@ -353,7 +357,8 @@ class MapViewModel @Inject constructor(
             lat = lat,
             lon = lng,
             count = count,
-            payload = this
+            payload = this,
+            thumbnailUri = thumbnailUri
         )
     }
 

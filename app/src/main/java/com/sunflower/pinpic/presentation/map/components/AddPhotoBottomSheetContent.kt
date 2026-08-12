@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.sunflower.pinpic.domain.model.LocationInfo
 import com.sunflower.pinpic.presentation.map.AddPhotoMode
+import com.sunflower.pinpic.presentation.common.shimmerEffect
 
 @Composable
 fun AddPhotoBottomSheetContent(
@@ -73,8 +74,8 @@ fun AddPhotoBottomSheetContent(
                 )
             }
             AddPhotoMode.LOCATION_SELECTED -> {
-                val titleModifier = if (isLoadingLocation) Modifier.fillMaxWidth(0.6f).height(24.dp) else Modifier
-                val subtitleModifier = if (isLoadingLocation) Modifier.fillMaxWidth(0.9f).height(16.dp) else Modifier
+                val titleModifier = if (isLoadingLocation) Modifier.fillMaxWidth(0.6f).height(24.dp).shimmerEffect() else Modifier
+                val subtitleModifier = if (isLoadingLocation) Modifier.fillMaxWidth(0.9f).height(16.dp).shimmerEffect() else Modifier
                 val title = locationInfo?.name ?: locationInfo?.city ?: "Selected Location"
                 val subtitle = locationInfo?.formatted ?: "Unknown Location"
                 

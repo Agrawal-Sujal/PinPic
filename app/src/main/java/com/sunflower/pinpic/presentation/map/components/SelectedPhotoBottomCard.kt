@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.sunflower.pinpic.domain.model.Photo
+import com.sunflower.pinpic.presentation.common.shimmerEffect
 
 @Composable
 fun SelectedPhotoBottomCard(
@@ -83,7 +84,7 @@ fun SelectedPhotoBottomCard(
                             Spacer(modifier = Modifier.width(4.dp))
                             
                             if (isLoadingLocation) {
-                                Box(modifier = Modifier.fillMaxWidth(0.8f).height(14.dp))
+                                Box(modifier = Modifier.fillMaxWidth(0.8f).height(14.dp).shimmerEffect())
                             } else {
                                 Text(
                                     text = locationInfo?.name ?: locationInfo?.city ?: "Unknown Location",

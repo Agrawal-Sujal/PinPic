@@ -13,7 +13,8 @@ data class GeoPoint(
     val lat: Double,
     val lon: Double,
     val count: Int = 1,
-    val payload: Any? = null
+    val payload: Any? = null,
+    val thumbnailUri:String?
 )
 
 /**
@@ -30,7 +31,8 @@ data class ClusterNode(
     val count: Int,
     val zoom: Int,
     val pointId: String? = null,
-    val childIds: LongArray? = null
+    val childIds: LongArray? = null,
+    val thumbnailUri: String?
 ) {
     val isCluster: Boolean get() = pointId == null
 
@@ -107,7 +109,8 @@ class GeoClusterIndex private constructor(
             lon = point.lon,
             count = 1,
             zoom = maxZoom + 1,
-            pointId = point.id
+            pointId = point.id,
+            thumbnailUri = point.thumbnailUri
         )
         nodesById[id] = leaf
 
@@ -146,7 +149,8 @@ class GeoClusterIndex private constructor(
                 val count: Int,
                 val pointId: String?,
                 val childIds: LongArray?,
-                val zoom: Int
+                val zoom: Int,
+                val thumbnailUri:String?
             )
 
             var current: List<Working> = points.map { p ->
@@ -157,7 +161,8 @@ class GeoClusterIndex private constructor(
                     count = p.count,
                     pointId = p.id,
                     childIds = null,
-                    zoom = maxZoom + 1 // leaves are always "visible" as themselves at max zoom
+                    zoom = maxZoom + 1, // leaves are always "visible" as themselves at max zoom
+                    thumbnailUri = p.thumbnailUri
                 )
             }
 
@@ -166,7 +171,7 @@ class GeoClusterIndex private constructor(
 
             // Seed nodesById with leaves so getChildren/getLeaves can resolve them regardless of layer.
             current.forEach { w ->
-                nodesById[w.id] = ClusterNode(w.id, yLat(w.y), xLng(w.x), w.count, w.zoom, w.pointId, w.childIds)
+                nodesById[w.id] = ClusterNode(w.id, yLat(w.y), xLng(w.x), w.count, w.zoom, w.pointId, w.childIds,w.thumbnailUri)
             }
 
             for (z in maxZoom downTo minZoom) {
@@ -204,12 +209,13 @@ class GeoClusterIndex private constructor(
                             count = sumCount,
                             pointId = null,
                             childIds = neighbors.map { current[it].id }.toLongArray(),
-                            zoom = z
+                            zoom = z,
+                            thumbnailUri = null
                         )
                         next.add(merged)
                         nodesById[merged.id] = ClusterNode(
                             merged.id, yLat(cy), xLng(cx), merged.count, merged.zoom,
-                            null, merged.childIds
+                            null, merged.childIds,merged.thumbnailUri
                         )
                     }
                 }
@@ -217,7 +223,7 @@ class GeoClusterIndex private constructor(
                 // Store this zoom's layer using lat/lon coords so runtime queries take a plain
                 // geographic bbox with no projection step on the hot path.
                 val layerNodes = next.map { w ->
-                    nodesById[w.id] ?: ClusterNode(w.id, yLat(w.y), xLng(w.x), w.count, w.zoom, w.pointId, w.childIds)
+                    nodesById[w.id] ?: ClusterNode(w.id, yLat(w.y), xLng(w.x), w.count, w.zoom, w.pointId, w.childIds,w.thumbnailUri)
                 }.toMutableList()
                 val lonArr = DoubleArray(layerNodes.size) { layerNodes[it].lon }
                 val latArr = DoubleArray(layerNodes.size) { layerNodes[it].lat }

@@ -23,11 +23,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,33 +73,29 @@ fun PhotoMapMarker(
     onClick: () -> Unit,
     color: Color
 ) {
-    var thumbnailUri by remember { mutableStateOf<String?>(null) }
+//    var thumbnailUri by remember { mutableStateOf<String?>(null) }
+//
+//    LaunchedEffect(node.id) {
+//        if (!node.isCluster && thumbnailUri == null) {
+//            thumbnailUri = viewModel.getThumbnailForNode(node.id)
+//        }
+//    }
+//
+//    val photoModel = if (thumbnailUri != null) {
+//        null
+////        thumbnailUri
+////        File(thumbnailUri!!)
+//    } else {
+//        null
+//    }
 
-    LaunchedEffect(node.id) {
-        if (!node.isCluster && thumbnailUri == null) {
-            thumbnailUri = viewModel.getThumbnailForNode(node.id)
-        }
-    }
-
-    val photoModel = if (thumbnailUri != null) {
-        null
-//        thumbnailUri
-//        File(thumbnailUri!!)
-    } else {
-        null
-    }
-
-    var imageState by remember { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
     val painter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(LocalContext.current)
-            .data(photoModel)
+            .data(node.thumbnailUri)
             .size(152)
-            .crossfade(true)
+            .crossfade(false)
             .allowHardware(false)
-            .build(),
-        onState = { state ->
-            imageState = state
-        }
+            .build()
     )
     val markerState = remember(node.id) {
         MarkerState(position = LatLng(node.lat, node.lon))
@@ -111,8 +104,8 @@ fun PhotoMapMarker(
     MarkerComposable(
         keys = arrayOf<Any>(
             node.id,
-            photoModel ?: "",
-            imageState is AsyncImagePainter.State.Success,
+            node.thumbnailUri ?: "",
+            painter.state is AsyncImagePainter.State.Success,
             node.isCluster
         ),
         state = markerState,
