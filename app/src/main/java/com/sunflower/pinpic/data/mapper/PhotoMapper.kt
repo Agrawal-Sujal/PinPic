@@ -39,7 +39,11 @@ fun ClusterPoint.toEntity(): ClusterPointEntity {
         lat = lat,
         lng = lng,
         count = count,
-        thumbnailUri = thumbnailUri
+        thumbnailUri = thumbnailUri,
+        locationName = locationName,
+        city = city,
+        state = state,
+        country = country
     )
 }
 
@@ -49,6 +53,10 @@ fun ClusterPointEntity.toDomain(): ClusterPoint {
         lat = lat,
         lng = lng,
         count = count,
-        thumbnailUri = thumbnailUri
+        thumbnailUri = thumbnailUri,
+        locationName = locationName,
+        city = city,
+        state = state,
+        country = country
     )
 }

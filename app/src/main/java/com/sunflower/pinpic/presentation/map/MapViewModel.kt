@@ -265,6 +265,37 @@ class MapViewModel @Inject constructor(
         return directPhotos + clusteredPhotos
     }
 
+    suspend fun getPhotosAndClusterForNode(clusterId: Long): Pair<List<Photo>, ClusterPoint?> {
+        val (directPhotos, clusterPoints) = indexMutex.withLock {
+            val idx = index ?: return@withLock Pair(emptyList<Photo>(), emptyList<ClusterPoint>())
+            val leaves = idx.getLeaves(clusterId)
+            val pointIds = leaves.mapNotNull { it.pointId }.toSet()
+
+            val liveLeaves = livePoints.filter { it.id in pointIds }
+
+            val direct = liveLeaves.mapNotNull { it.payload as? Photo }
+            val clusters = liveLeaves.mapNotNull { it.payload as? ClusterPoint }
+            Pair(direct, clusters)
+        }
+
+        val clusteredPhotos = if (clusterPoints.isNotEmpty()) {
+            val clusterIds = clusterPoints.map { it.id }
+            val result = photosRepository.getPhotosByClusterIds(clusterIds)
+            if (result is Result.Success) result.data else emptyList()
+        } else {
+            emptyList()
+        }
+        
+        val clusterPoint = if (clusterPoints.size == 1) clusterPoints.first() else null
+        return Pair(directPhotos + clusteredPhotos, clusterPoint)
+    }
+
+    fun updateClusterPoint(clusterPoint: ClusterPoint) {
+        viewModelScope.launch {
+            photosRepository.saveClusterPoint(clusterPoint)
+        }
+    }
+
     suspend fun fetchLocationInfo(lat: Double, lon: Double): com.sunflower.pinpic.domain.model.LocationInfo? {
         val result = getLocationInfoUseCase(lat, lon)
         Log.d("TAG","Location Info ${result}")

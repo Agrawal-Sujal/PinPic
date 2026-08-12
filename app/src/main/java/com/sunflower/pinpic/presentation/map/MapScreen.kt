@@ -155,6 +155,7 @@ fun MapScreen(
     var expandedLocations by remember { mutableStateOf(emptySet<String>()) }
     var isClusterClick by remember { mutableStateOf(false) }
     var selectedClusterPhotos by remember { mutableStateOf<List<Photo>?>(null) }
+    var selectedClusterPoint by remember { mutableStateOf<com.sunflower.pinpic.domain.model.ClusterPoint?>(null) }
     var selectedSinglePhotoLocation by remember {
         mutableStateOf<com.sunflower.pinpic.domain.model.LocationInfo?>(
             null
@@ -297,6 +298,7 @@ fun MapScreen(
                 isClusterClick = false
                 selectedAddPhotoLocation = null
                 selectedClusterPhotos = null
+                selectedClusterPoint = null
                 selectedSinglePhotoLocation = null
             }
         }
@@ -435,6 +437,7 @@ fun MapScreen(
                         isClusterClick = false
                         selectedAddPhotoLocation = null
                         selectedClusterPhotos = null
+                        selectedClusterPoint = null
                         selectedSinglePhotoLocation = null
                     }
                 }
@@ -454,6 +457,7 @@ fun MapScreen(
                                         val photos = viewModel.getPhotosForNode(node.id)
                                         if (photos.isNotEmpty()) {
                                             selectedClusterPhotos = photos
+                                            selectedClusterPoint = null
                                             selectedSinglePhotoLocation = null
                                             isClusterClick = true
                                         }
@@ -467,21 +471,35 @@ fun MapScreen(
                                 viewModel = viewModel,
                                 onClick = {
                                     coroutineScope.launch {
-                                        val photos = viewModel.getPhotosForNode(node.id)
+                                        val (photos, clusterPoint) = viewModel.getPhotosAndClusterForNode(node.id)
                                         if (photos.isNotEmpty()) {
                                             showGallerySheet = false
                                             addPhotoMode = AddPhotoMode.NONE
                                             val photo = photos.first()
                                             selectedClusterPhotos = photos
+                                            selectedClusterPoint = clusterPoint
                                             selectedSinglePhotoLocation = null
                                             isClusterClick = false
-                                            if (photo.lat != null && photo.lng != null) {
+                                            val targetLat = clusterPoint?.lat ?: photo.lat
+                                            val targetLng = clusterPoint?.lng ?: photo.lng
+                                            if (targetLat != null && targetLng != null) {
                                                 isLoadingLocation = true
-                                                selectedSinglePhotoLocation =
-                                                    viewModel.fetchLocationInfo(
-                                                        photo.lat,
-                                                        photo.lng
+                                                val locInfo = viewModel.fetchLocationInfo(
+                                                        targetLat,
+                                                        targetLng
                                                     )
+                                                selectedSinglePhotoLocation = locInfo
+                                                
+                                                if (clusterPoint != null && (clusterPoint.locationName == null || clusterPoint.city == null || clusterPoint.state == null || clusterPoint.country == null) && locInfo != null) {
+                                                    val updatedPoint = clusterPoint.copy(
+                                                        locationName = clusterPoint.locationName ?: locInfo.name,
+                                                        city = clusterPoint.city ?: locInfo.city,
+                                                        state = clusterPoint.state ?: locInfo.state,
+                                                        country = clusterPoint.country ?: locInfo.country
+                                                    )
+                                                    viewModel.updateClusterPoint(updatedPoint)
+                                                    selectedClusterPoint = updatedPoint
+                                                }
                                                 isLoadingLocation = false
                                             }
                                         }
@@ -585,6 +603,7 @@ fun MapScreen(
                         onClick = {
                             showGallerySheet = false
                             selectedClusterPhotos = null
+                            selectedClusterPoint = null
                             addPhotoMode = AddPhotoMode.SELECT_LOCATION
                         },
                         modifier = Modifier.padding(end = 16.dp, bottom = 16.dp),
@@ -693,6 +712,7 @@ fun MapScreen(
         if (bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Hidden) {
             showGallerySheet = false
             selectedClusterPhotos = null
+            selectedClusterPoint = null
         }
     }
 
@@ -711,6 +731,7 @@ fun MapScreen(
             com.sunflower.pinpic.presentation.map.components.SelectedClusterGallerySheet(
                 photos = selectedClusterPhotos!!,
                 locationInfo = selectedSinglePhotoLocation,
+                clusterPoint = selectedClusterPoint,
                 isLoadingLocation = isLoadingLocation,
                 showThumbnailAndLocation = !isClusterClick,
                 onClose = {
@@ -719,16 +740,22 @@ fun MapScreen(
                     }.invokeOnCompletion {
                         if (!sheetState.isVisible) {
                             selectedClusterPhotos = null
+                            selectedClusterPoint = null
                             selectedSinglePhotoLocation = null
                             isClusterClick = false
                         }
                     }
+                },
+                onEditClusterPoint = { updatedPoint ->
+                    viewModel.updateClusterPoint(updatedPoint)
+                    selectedClusterPoint = updatedPoint
                 },
                 onDeletePhotos = { photos ->
                     viewModel.deletePhotos(photos)
                     selectedClusterPhotos = selectedClusterPhotos?.filter { it !in photos }
                     if (selectedClusterPhotos.isNullOrEmpty()) {
                         selectedClusterPhotos = null
+                        selectedClusterPoint = null
                         selectedSinglePhotoLocation = null
                     }
                 }
