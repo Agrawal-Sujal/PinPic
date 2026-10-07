@@ -21,6 +21,7 @@ import com.sunflower.pinpic.presentation.auth.username.UsernameScreen
 import com.sunflower.pinpic.presentation.common.SnackbarController
 import com.sunflower.pinpic.presentation.onboarding.OnboardingScreen
 import com.sunflower.pinpic.presentation.settings.SettingsScreen
+import com.sunflower.pinpic.presentation.profile.EditProfileScreen
 import com.sunflower.pinpic.presentation.splash.SplashScreen
 
 @Composable
@@ -75,22 +76,8 @@ fun AppNavDisplay() {
                     })
                 }
                 entry<Screen.Main> {
-                    MainScreen(
-                        onNavigateToSettings = {
-                            backStack.add(Screen.Settings)
-                        },
-                        currentMainScreen
-                    )
+                    MainScreen(currentTab = currentMainScreen)
                 }
-
-                entry<Screen.Settings> {
-                    SettingsScreen(
-                        onBack = {
-                            backStack.removeLastOrNull()
-                        }
-                    )
-                }
-
 
 
                 entry<Screen.Login> {

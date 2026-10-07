@@ -26,5 +26,6 @@ sealed class Screen {
     data object SignUp: Screen()
     data object UsernameSetup: Screen()
 
+    data object EditProfile : Screen()
     data object Settings : Screen()
 }

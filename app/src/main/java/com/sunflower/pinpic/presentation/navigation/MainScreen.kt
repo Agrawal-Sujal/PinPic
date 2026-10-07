@@ -53,6 +53,8 @@ import androidx.navigation3.ui.NavDisplay
 import com.sunflower.pinpic.presentation.gallery.GalleryScreen
 import com.sunflower.pinpic.presentation.map.MapScreen
 import com.sunflower.pinpic.presentation.profile.ProfileScreen
+import com.sunflower.pinpic.presentation.settings.SettingsScreen
+import com.sunflower.pinpic.presentation.profile.EditProfileScreen
 
 sealed class MainTab(val icon: ImageVector, val filledIcon: ImageVector, val label: String) {
     data object Map : MainTab(Icons.Outlined.LocationOn, Icons.Filled.LocationOn, "Map")
@@ -63,11 +65,10 @@ sealed class MainTab(val icon: ImageVector, val filledIcon: ImageVector, val lab
 
 @Composable
 fun MainScreen(
-    onNavigateToSettings: () -> Unit = {},
     currentTab: MutableState<MainTab?>
 ) {
-    val backStack = remember { mutableStateListOf<MainTab>(MainTab.Gallery) }
-    currentTab.value = backStack.lastOrNull() ?: MainTab.Gallery
+    val backStack = remember { mutableStateListOf<Any>(MainTab.Gallery) }
+    currentTab.value = backStack.lastOrNull { it is MainTab } as? MainTab ?: MainTab.Gallery
     Box(modifier = Modifier.fillMaxSize()) {
         NavDisplay(
             backStack = backStack,
@@ -87,19 +88,32 @@ fun MainScreen(
                 }
                 entry<MainTab.Gallery> {
                     GalleryScreen(
-                        onNavigateToSettings = onNavigateToSettings
+                        onNavigateToSettings = { backStack.add(Screen.Settings) }
                     )
                 }
                 entry<MainTab.Chat> {
                     DummyScreen("Coming Soon")
                 }
                 entry<MainTab.Profile> {
-                    ProfileScreen()
+                    ProfileScreen(
+                        onNavigateToEditProfile = { backStack.add(Screen.EditProfile) }
+                    )
+                }
+                entry<Screen.Settings> {
+                    SettingsScreen(
+                        onBack = { backStack.removeLastOrNull() }
+                    )
+                }
+                entry<Screen.EditProfile> {
+                    EditProfileScreen(
+                        onBack = { backStack.removeLastOrNull() }
+                    )
                 }
             }
         )
 
-        if (currentTab.value != MainTab.Map) {
+        val currentEntry = backStack.lastOrNull()
+        if (currentEntry is MainTab && currentEntry != MainTab.Map) {
             Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                 CustomFloatingBottomNavigation(
                     currentTab = currentTab.value!!,

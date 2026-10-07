@@ -34,18 +34,10 @@ import coil.compose.AsyncImage
 
 @Composable
 fun ProfileScreen(
-    viewModel: ProfileViewModel = hiltViewModel()
+    viewModel: ProfileViewModel = hiltViewModel(),
+    onNavigateToEditProfile: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var showEditDialog by remember { mutableStateOf(false) }
-
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        uri?.let {
-            viewModel.updateProfilePicture(it.toString())
-        }
-    }
 
     val backgroundColor = MaterialTheme.colorScheme.background
     val cardColor = MaterialTheme.colorScheme.surface
@@ -138,7 +130,7 @@ fun ProfileScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Button(
-                onClick = { showEditDialog = true },
+                onClick = onNavigateToEditProfile,
                 modifier = Modifier
                     .weight(1f)
                     .height(40.dp),
@@ -259,22 +251,6 @@ fun ProfileScreen(
             )
         }
     }
-
-    if (showEditDialog) {
-        EditProfileDialog(
-            pictureUrl = uiState.pictureUrl,
-            initialFullName = uiState.fullName,
-            initialMobile = uiState.mobileNumber,
-            onDismiss = { showEditDialog = false },
-            onSave = { name, mobile ->
-                viewModel.updateProfile(name, uiState.email, mobile, uiState.pictureUrl)
-                showEditDialog = false
-            },
-            onChangePhotoClick = {
-                photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            }
-        )
-    }
 }
 
 @Composable
@@ -350,99 +326,3 @@ fun MenuOptionRow(icon: ImageVector, iconTint: Color, title: String) {
     }
 }
 
-@Composable
-fun EditProfileDialog(
-    pictureUrl: String,
-    initialFullName: String,
-    initialMobile: String,
-    onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit,
-    onChangePhotoClick: () -> Unit
-) {
-    var fullName by remember { mutableStateOf(initialFullName) }
-    var mobile by remember { mutableStateOf(initialMobile) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Update Profile") },
-        text = {
-            Column(
-                modifier = Modifier.padding(top = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(modifier = Modifier.padding(bottom = 16.dp)) {
-                    if (pictureUrl.isNotEmpty()) {
-                        AsyncImage(
-                            model = pictureUrl,
-                            contentDescription = "Profile Picture",
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Filled.Person,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(48.dp)
-                            )
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .offset(x = (-4).dp, y = (-4).dp)
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.secondary)
-                            .clickable { onChangePhotoClick() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Filled.CameraAlt,
-                            contentDescription = "Change Photo",
-                            tint = MaterialTheme.colorScheme.onSecondary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-
-                OutlinedTextField(
-                    value = fullName,
-                    onValueChange = { fullName = it },
-                    label = { Text("Full Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = mobile,
-                    onValueChange = { mobile = it },
-                    label = { Text("Mobile Number") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(fullName, mobile) }) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
