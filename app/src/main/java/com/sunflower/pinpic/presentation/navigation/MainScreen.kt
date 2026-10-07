@@ -63,7 +63,6 @@ sealed class MainTab(val icon: ImageVector, val filledIcon: ImageVector, val lab
 
 @Composable
 fun MainScreen(
-    onNavigateToCamera: () -> Unit,
     onNavigateToSettings: () -> Unit = {},
     currentTab: MutableState<MainTab?>
 ) {
@@ -82,8 +81,7 @@ fun MainScreen(
                             onBackClick = {
                                 backStack.removeLastOrNull()
                                 backStack.add(MainTab.Gallery)
-                            },
-                            onCameraClick = onNavigateToCamera
+                            }
                         )
 
                 }
@@ -110,8 +108,7 @@ fun MainScreen(
                             if (tab == MainTab.Gallery) backStack.clear()
                             backStack.add(tab)
                         }
-                    },
-                    onCameraClick = onNavigateToCamera
+                    }
                 )
             }
         }
@@ -121,8 +118,7 @@ fun MainScreen(
 @Composable
 fun CustomFloatingBottomNavigation(
     currentTab: MainTab,
-    onTabSelected: (MainTab) -> Unit,
-    onCameraClick: () -> Unit
+    onTabSelected: (MainTab) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -140,12 +136,12 @@ fun CustomFloatingBottomNavigation(
                 .border(
                     width = 0.5.dp,
                     color = MaterialTheme.colorScheme.outline,
-                    shape = BottomNavCutoutShape()
+                    shape = androidx.compose.foundation.shape.CircleShape
                 )
-                .shadow(elevation = 1.dp, shape = BottomNavCutoutShape())
+                .shadow(elevation = 1.dp, shape = androidx.compose.foundation.shape.CircleShape)
                 .background(
                     color = MaterialTheme.colorScheme.surface,
-                    shape = BottomNavCutoutShape()
+                    shape = androidx.compose.foundation.shape.CircleShape
                 )
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -162,8 +158,6 @@ fun CustomFloatingBottomNavigation(
                 onClick = { onTabSelected(MainTab.Gallery) }
             )
 
-            Spacer(modifier = Modifier.width(64.dp))
-
             BottomNavItem(
                 tab = MainTab.Chat,
                 isSelected = currentTab == MainTab.Chat,
@@ -176,23 +170,6 @@ fun CustomFloatingBottomNavigation(
             )
         }
 
-        // Center FAB using your theme colors
-        FloatingActionButton(
-            onClick = onCameraClick,
-            shape = CircleShape,
-            containerColor = MaterialTheme.colorScheme.primary, // Kept your primary theme color
-            contentColor = MaterialTheme.colorScheme.onPrimary,  // Kept your on-primary theme color
-            modifier = Modifier
-                .size(50.dp)
-                .align(Alignment.TopCenter)
-                .offset(y = 8.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.CameraAlt,
-                contentDescription = "Camera",
-                modifier = Modifier.size(26.dp)
-            )
-        }
     }
 }
 
@@ -228,62 +205,7 @@ fun BottomNavItem(
     }
 }
 
-class BottomNavCutoutShape : Shape {
-    override fun createOutline(
-        size: Size,
-        layoutDirection: LayoutDirection,
-        density: Density
-    ): Outline {
-        val path = Path().apply {
-            val cornerRadius = size.height / 2
 
-            moveTo(cornerRadius, 0f)
-
-            val cutoutWidth = size.width * 0.25f
-            val center = size.width / 2
-            val leftCurveStart = center - (cutoutWidth / 2) - 15
-            val rightCurveEnd = center + (cutoutWidth / 2) + 15
-            val dipDepth = size.height * 0.53f
-
-            lineTo(leftCurveStart, 0f)
-
-            cubicTo(
-                x1 = leftCurveStart + (cutoutWidth * 0.2f), y1 = 0f,
-                x2 = center - (cutoutWidth * 0.25f), y2 = dipDepth,
-                x3 = center, y3 = dipDepth
-            )
-
-            cubicTo(
-                x1 = center + (cutoutWidth * 0.25f), y1 = dipDepth,
-                x2 = rightCurveEnd - (cutoutWidth * 0.2f), y2 = 0f,
-                x3 = rightCurveEnd, y3 = 0f
-            )
-
-            lineTo(size.width - cornerRadius, 0f)
-            arcTo(
-                rect = Rect(
-                    size.width - (cornerRadius * 2), 0f, size.width, size.height
-                ),
-                startAngleDegrees = -90f,
-                sweepAngleDegrees = 180f,
-                forceMoveTo = false
-            )
-
-            lineTo(cornerRadius, size.height)
-
-            arcTo(
-                rect = androidx.compose.ui.geometry.Rect(
-                    0f, 0f, cornerRadius * 2, size.height
-                ),
-                startAngleDegrees = 90f,
-                sweepAngleDegrees = 180f,
-                forceMoveTo = false
-            )
-            close()
-        }
-        return Outline.Generic(path)
-    }
-}
 
 @Composable
 fun DummyScreen(title: String) {

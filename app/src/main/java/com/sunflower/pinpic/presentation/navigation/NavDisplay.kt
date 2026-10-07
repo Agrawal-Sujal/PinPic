@@ -17,7 +17,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.sunflower.pinpic.presentation.auth.login.LoginScreen
 import com.sunflower.pinpic.presentation.auth.signup.SignUpScreen
 import com.sunflower.pinpic.presentation.auth.username.UsernameScreen
-import com.sunflower.pinpic.presentation.camera.CameraScreen
+
 import com.sunflower.pinpic.presentation.common.SnackbarController
 import com.sunflower.pinpic.presentation.onboarding.OnboardingScreen
 import com.sunflower.pinpic.presentation.settings.SettingsScreen
@@ -76,9 +76,6 @@ fun AppNavDisplay() {
                 }
                 entry<Screen.Main> {
                     MainScreen(
-                        onNavigateToCamera = {
-                            backStack.add(Screen.Camera)
-                        },
                         onNavigateToSettings = {
                             backStack.add(Screen.Settings)
                         },
@@ -94,13 +91,7 @@ fun AppNavDisplay() {
                     )
                 }
 
-                entry<Screen.Camera> {
-                    CameraScreen(
-                        onClose = {
-                            backStack.removeLastOrNull()
-                        }
-                    )
-                }
+
 
                 entry<Screen.Login> {
                     LoginScreen(

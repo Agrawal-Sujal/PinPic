@@ -27,7 +27,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.outlined.CameraAlt
+
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.BottomSheetScaffold
@@ -116,8 +116,7 @@ enum class AddPhotoMode {
 @Composable
 fun MapScreen(
     viewModel: MapViewModel = hiltViewModel(),
-    onBackClick: () -> Unit,
-    onCameraClick: () -> Unit
+    onBackClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -579,20 +578,7 @@ fun MapScreen(
                     }
                 }
 
-                AnimatedVisibility(visible = addPhotoMode == AddPhotoMode.NONE) {
-                    FloatingActionButton(
-                        onClick = onCameraClick,
-                        modifier = Modifier.padding(end = 16.dp),
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        shape = CircleShape
-                    ) {
-                        Icon(
-                            Icons.Outlined.CameraAlt,
-                            contentDescription = "Camera"
-                        )
-                    }
-                }
+
 
                 AnimatedVisibility(visible = addPhotoMode == AddPhotoMode.NONE) {
                     Spacer(modifier = Modifier.height(16.dp))
