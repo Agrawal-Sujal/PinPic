@@ -1,8 +1,6 @@
 package com.sunflower.pinpic.di
 
-import com.sunflower.pinpic.data.repository.GeocodingRepositoryImpl
 import com.sunflower.pinpic.data.repository.PhotosRepositoryImpl
-import com.sunflower.pinpic.domain.repository.GeocodingRepository
 import com.sunflower.pinpic.domain.repository.PhotosRepository
 import dagger.Binds
 import dagger.Module
@@ -19,10 +17,4 @@ abstract class RepositoryModule {
     abstract fun bindPhotosRepository(
         photosRepositoryImpl: PhotosRepositoryImpl
     ): PhotosRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindGeocodingRepository(
-        geocodingRepositoryImpl: GeocodingRepositoryImpl
-    ): GeocodingRepository
 }

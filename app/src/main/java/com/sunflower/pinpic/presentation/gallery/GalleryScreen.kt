@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
@@ -136,13 +137,21 @@ fun GalleryContent(
     allPhotos: List<Photo>,
     allowSelection: Boolean = true,
     showHeader: Boolean = true,
-    onNavigateToSettings: () -> Unit = {}
+    showTabs: Boolean = true,
+    externalTabIndex: Int? = null,
+    onExternalTabSelected: ((Int) -> Unit)? = null,
+    onNavigateToSettings: () -> Unit = {},
+    onEdit: (() -> Unit)? = null
 ) {
     var selectedPhotoIndex by remember { mutableStateOf<Int?>(null) }
     val selectedPhotos = remember { mutableStateListOf<Photo>() }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showGalleryInfoDialog by remember { mutableStateOf(false) }
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    
+    var internalSelectedTabIndex by remember { mutableIntStateOf(0) }
+    val selectedTabIndex = externalTabIndex ?: internalSelectedTabIndex
+    val onTabSelected = onExternalTabSelected ?: { internalSelectedTabIndex = it }
+    
     val inSelectionMode = selectedPhotos.isNotEmpty()
     val context = LocalContext.current
 
@@ -176,7 +185,8 @@ fun GalleryContent(
                     Toast.makeText(context, "Saved to device", Toast.LENGTH_SHORT).show()
                     selectedPhotos.clear()
                 },
-                onDelete = { showDeleteConfirmDialog = true }
+                onDelete = { showDeleteConfirmDialog = true },
+                onEdit = onEdit
             )
         } else if (showHeader) {
             // Top Bar
@@ -210,12 +220,15 @@ fun GalleryContent(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Tabs
-            GalleryTabs(
-                selectedTabIndex = selectedTabIndex,
-                onTabSelected = { selectedTabIndex = it }
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
+            if (showTabs) {
+                GalleryTabs(
+                    selectedTabIndex = selectedTabIndex,
+                    onTabSelected = onTabSelected
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             if (uiState.photosGroupedByDate.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -598,7 +611,8 @@ fun SelectionActionBar(
     onShare: () -> Unit,
     onInfo: () -> Unit,
     onSaveToDevice: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEdit: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
@@ -628,6 +642,11 @@ fun SelectionActionBar(
             if (selectedCount == 1) {
                 IconButton(onClick = onInfo) {
                     Icon(Icons.Outlined.Info, contentDescription = "Info")
+                }
+                if (onEdit != null) {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Outlined.Edit, contentDescription = "Edit")
+                    }
                 }
             }
             IconButton(onClick = onShare) {

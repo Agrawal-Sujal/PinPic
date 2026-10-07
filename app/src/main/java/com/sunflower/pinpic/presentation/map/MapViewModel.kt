@@ -18,7 +18,6 @@ import com.sunflower.pinpic.domain.map.GeoPoint
 import com.sunflower.pinpic.domain.model.ClusterPoint
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.domain.repository.PhotosRepository
-import com.sunflower.pinpic.domain.usecase.GetLocationInfoUseCase
 import com.sunflower.pinpic.domain.usecase.SavePhotosUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -64,7 +63,6 @@ class MapViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val photosRepository: PhotosRepository,
     private val savePhotosUseCase: SavePhotosUseCase,
-    private val getLocationInfoUseCase: GetLocationInfoUseCase,
     private val dataStoreManager: DataStoreManager
 ) : ViewModel() {
 
@@ -296,12 +294,6 @@ class MapViewModel @Inject constructor(
         }
     }
 
-    suspend fun fetchLocationInfo(lat: Double, lon: Double): com.sunflower.pinpic.domain.model.LocationInfo? {
-        val result = getLocationInfoUseCase(lat, lon)
-        Log.d("TAG","Location Info ${result}")
-        return result.getOrNull()
-    }
-
     fun deletePhotos(photos: List<Photo>) {
         viewModelScope.launch {
             photosRepository.deletePhotos(photos)
@@ -319,8 +311,7 @@ class MapViewModel @Inject constructor(
             val finalDateStr = dateStr ?: defaultDateFormatter.format(now)
             val finalTimeStr = timeStr ?: defaultTimeFormatter.format(now)
 
-            val locationInfo = fetchLocationInfo(latLng.latitude, latLng.longitude)
-            val cityName = locationInfo?.city ?: "Unknown Location"
+            val cityName = "Unknown Location"
 
             var createdClusterId: Long? = null
             val cluster = ClusterPoint(

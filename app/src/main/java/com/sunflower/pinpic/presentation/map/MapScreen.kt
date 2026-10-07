@@ -156,12 +156,6 @@ fun MapScreen(
     var isClusterClick by remember { mutableStateOf(false) }
     var selectedClusterPhotos by remember { mutableStateOf<List<Photo>?>(null) }
     var selectedClusterPoint by remember { mutableStateOf<com.sunflower.pinpic.domain.model.ClusterPoint?>(null) }
-    var selectedSinglePhotoLocation by remember {
-        mutableStateOf<com.sunflower.pinpic.domain.model.LocationInfo?>(
-            null
-        )
-    }
-    var isLoadingLocation by remember { mutableStateOf(false) }
     var sheetHeightDp by remember { mutableStateOf(0.dp) }
 
     val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
@@ -299,7 +293,6 @@ fun MapScreen(
                 selectedAddPhotoLocation = null
                 selectedClusterPhotos = null
                 selectedClusterPoint = null
-                selectedSinglePhotoLocation = null
             }
         }
     }
@@ -313,7 +306,7 @@ fun MapScreen(
 
     val mapUiSettings = remember {
         MapUiSettings(
-            zoomControlsEnabled = false,
+            zoomControlsEnabled = true,
             mapToolbarEnabled = false,
             myLocationButtonEnabled = false
         )
@@ -365,8 +358,6 @@ fun MapScreen(
             } else if (addPhotoMode != AddPhotoMode.NONE) {
                 AddPhotoBottomSheetContent(
                     addPhotoMode = addPhotoMode,
-                    locationInfo = selectedSinglePhotoLocation,
-                    isLoadingLocation = isLoadingLocation,
                     pendingUris = pendingUris,
                     onSelectPhotosClick = {
                         photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -402,7 +393,6 @@ fun MapScreen(
                         }
                         addPhotoMode = AddPhotoMode.NONE
                         selectedAddPhotoLocation = null
-                        selectedSinglePhotoLocation = null
                         pendingUris = emptyList()
                         dateText = ""
                         timeText = ""
@@ -427,18 +417,13 @@ fun MapScreen(
                     if (addPhotoMode == AddPhotoMode.SELECT_LOCATION || addPhotoMode == AddPhotoMode.LOCATION_SELECTED) {
                         coroutineScope.launch {
                             selectedAddPhotoLocation = latLng
-                            isLoadingLocation = true
                             addPhotoMode = AddPhotoMode.LOCATION_SELECTED
-                            selectedSinglePhotoLocation =
-                                viewModel.fetchLocationInfo(latLng.latitude, latLng.longitude)
-                            isLoadingLocation = false
                         }
                     } else if (addPhotoMode == AddPhotoMode.NONE) {
                         isClusterClick = false
                         selectedAddPhotoLocation = null
                         selectedClusterPhotos = null
                         selectedClusterPoint = null
-                        selectedSinglePhotoLocation = null
                     }
                 }
             ) {
@@ -458,7 +443,6 @@ fun MapScreen(
                                         if (photos.isNotEmpty()) {
                                             selectedClusterPhotos = photos
                                             selectedClusterPoint = null
-                                            selectedSinglePhotoLocation = null
                                             isClusterClick = true
                                         }
                                     }
@@ -478,30 +462,8 @@ fun MapScreen(
                                             val photo = photos.first()
                                             selectedClusterPhotos = photos
                                             selectedClusterPoint = clusterPoint
-                                            selectedSinglePhotoLocation = null
                                             isClusterClick = false
-                                            val targetLat = clusterPoint?.lat ?: photo.lat
-                                            val targetLng = clusterPoint?.lng ?: photo.lng
-                                            if (targetLat != null && targetLng != null) {
-                                                isLoadingLocation = true
-                                                val locInfo = viewModel.fetchLocationInfo(
-                                                        targetLat,
-                                                        targetLng
-                                                    )
-                                                selectedSinglePhotoLocation = locInfo
-                                                
-                                                if (clusterPoint != null && (clusterPoint.locationName == null || clusterPoint.city == null || clusterPoint.state == null || clusterPoint.country == null) && locInfo != null) {
-                                                    val updatedPoint = clusterPoint.copy(
-                                                        locationName = clusterPoint.locationName ?: locInfo.name,
-                                                        city = clusterPoint.city ?: locInfo.city,
-                                                        state = clusterPoint.state ?: locInfo.state,
-                                                        country = clusterPoint.country ?: locInfo.country
-                                                    )
-                                                    viewModel.updateClusterPoint(updatedPoint)
-                                                    selectedClusterPoint = updatedPoint
-                                                }
-                                                isLoadingLocation = false
-                                            }
+                                            
                                         }
                                     }
                                 },
@@ -534,7 +496,6 @@ fun MapScreen(
                     if (addPhotoMode != AddPhotoMode.NONE) {
                         addPhotoMode = AddPhotoMode.NONE
                         selectedAddPhotoLocation = null
-                        selectedSinglePhotoLocation = null
                         pendingUris = emptyList()
                     } else {
                         onBackClick()
@@ -665,11 +626,7 @@ fun MapScreen(
                                         coroutineScope.launch {
                                             val latLng = LatLng(loc.latitude, loc.longitude)
                                             selectedAddPhotoLocation = latLng
-                                            isLoadingLocation = true
                                             addPhotoMode = AddPhotoMode.LOCATION_SELECTED
-                                            selectedSinglePhotoLocation =
-                                                viewModel.fetchLocationInfo(latLng.latitude, latLng.longitude)
-                                            isLoadingLocation = false
                                         }
                                     }
                                 }
@@ -721,7 +678,6 @@ fun MapScreen(
         androidx.compose.material3.ModalBottomSheet(
             onDismissRequest = {
                 selectedClusterPhotos = null
-                selectedSinglePhotoLocation = null
                 isClusterClick = false
             },
             sheetState = sheetState,
@@ -730,9 +686,7 @@ fun MapScreen(
         ) {
             com.sunflower.pinpic.presentation.map.components.SelectedClusterGallerySheet(
                 photos = selectedClusterPhotos!!,
-                locationInfo = selectedSinglePhotoLocation,
                 clusterPoint = selectedClusterPoint,
-                isLoadingLocation = isLoadingLocation,
                 showThumbnailAndLocation = !isClusterClick,
                 onClose = {
                     coroutineScope.launch {
@@ -741,7 +695,6 @@ fun MapScreen(
                         if (!sheetState.isVisible) {
                             selectedClusterPhotos = null
                             selectedClusterPoint = null
-                            selectedSinglePhotoLocation = null
                             isClusterClick = false
                         }
                     }
@@ -756,7 +709,6 @@ fun MapScreen(
                     if (selectedClusterPhotos.isNullOrEmpty()) {
                         selectedClusterPhotos = null
                         selectedClusterPoint = null
-                        selectedSinglePhotoLocation = null
                     }
                 }
             )

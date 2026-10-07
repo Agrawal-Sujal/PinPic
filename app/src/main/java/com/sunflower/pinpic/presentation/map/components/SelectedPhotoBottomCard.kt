@@ -36,8 +36,6 @@ import com.sunflower.pinpic.presentation.common.shimmerEffect
 @Composable
 fun SelectedPhotoBottomCard(
     photo: Photo,
-    locationInfo: com.sunflower.pinpic.domain.model.LocationInfo?,
-    isLoadingLocation: Boolean = false,
     onViewPhotoClick: () -> Unit,
     onMenuClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -83,17 +81,13 @@ fun SelectedPhotoBottomCard(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             
-                            if (isLoadingLocation) {
-                                Box(modifier = Modifier.fillMaxWidth(0.8f).height(14.dp).shimmerEffect())
-                            } else {
-                                Text(
-                                    text = locationInfo?.name ?: locationInfo?.city ?: "Unknown Location",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
+                            Text(
+                                text = photo.locationName ?: "Unknown Location",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                         
                         Spacer(modifier = Modifier.height(4.dp))

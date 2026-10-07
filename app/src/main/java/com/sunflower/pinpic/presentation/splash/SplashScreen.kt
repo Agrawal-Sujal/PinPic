@@ -59,7 +59,7 @@ fun SplashScreen(
                 when (effect) {
                     SplashSideEffect.NavigateToLogin -> onNavigateToLogin()
                     SplashSideEffect.NavigateToMain -> onNavigateToMain()
-                    SplashSideEffect.NavigationToOnboarding -> onNavigateToMain()
+                    SplashSideEffect.NavigationToOnboarding -> onNavigateToOnBoarding()
                     SplashSideEffect.NavigateToUsernameSetup -> onNavigateToUsernameSetup()
                 }
             }

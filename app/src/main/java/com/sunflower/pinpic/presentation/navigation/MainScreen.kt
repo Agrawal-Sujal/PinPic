@@ -52,6 +52,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.sunflower.pinpic.presentation.gallery.GalleryScreen
 import com.sunflower.pinpic.presentation.map.MapScreen
+import com.sunflower.pinpic.presentation.profile.ProfileScreen
 
 sealed class MainTab(val icon: ImageVector, val filledIcon: ImageVector, val label: String) {
     data object Map : MainTab(Icons.Outlined.LocationOn, Icons.Filled.LocationOn, "Map")
@@ -95,7 +96,7 @@ fun MainScreen(
                     DummyScreen("Coming Soon")
                 }
                 entry<MainTab.Profile> {
-                    DummyScreen("Coming Soon")
+                    ProfileScreen()
                 }
             }
         )
