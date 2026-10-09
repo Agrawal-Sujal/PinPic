@@ -1,6 +1,7 @@
 package com.sunflower.pinpic.di
 
 import com.sunflower.pinpic.data.remote.api.AuthApi
+import com.sunflower.pinpic.data.remote.api.S3Api
 import com.sunflower.pinpic.data.remote.api.UserApi
 import dagger.Module
 import dagger.Provides
@@ -63,5 +64,11 @@ object NetworkModule {
     @Singleton
     fun provideUserApi(@Named("AuthRetrofit") retrofit: Retrofit): UserApi {
         return retrofit.create(UserApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideS3Api(@Named("AuthRetrofit") retrofit: Retrofit): S3Api {
+        return retrofit.create(S3Api::class.java)
     }
 }

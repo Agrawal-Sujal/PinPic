@@ -1,5 +1,6 @@
 package com.sunflower.pinpic.domain.repository
 
+import android.net.Uri
 import com.sunflower.pinpic.common.Result
 
 interface UserRepository {
@@ -8,7 +9,7 @@ interface UserRepository {
         mobileNumber: String,
         locale: String,
         pictureUrl: String,
-        imageBytes: ByteArray?,
+        selectedUri: Uri?,
         imageName: String?
     ): Result<Unit>
 }

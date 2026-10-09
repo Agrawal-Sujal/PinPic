@@ -3,6 +3,9 @@ package com.sunflower.pinpic.presentation.gallery
 import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -30,6 +33,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -82,7 +86,6 @@ import java.util.Locale
 
 @Composable
 fun GalleryScreen(
-    onNavigateToSettings: () -> Unit = {},
     viewModel: GalleryViewModel = hiltViewModel(),
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
@@ -121,8 +124,7 @@ fun GalleryScreen(
             onToggleLocation = { viewModel.toggleLocationExpansion(it) },
             onDeletePhotos = { viewModel.deletePhotos(it) },
             modifier = modifier,
-            allPhotos = allPhotos,
-            onNavigateToSettings = onNavigateToSettings
+            allPhotos = allPhotos
         )
     }
 }
@@ -137,10 +139,6 @@ fun GalleryContent(
     allPhotos: List<Photo>,
     allowSelection: Boolean = true,
     showHeader: Boolean = true,
-    showTabs: Boolean = true,
-    externalTabIndex: Int? = null,
-    onExternalTabSelected: ((Int) -> Unit)? = null,
-    onNavigateToSettings: () -> Unit = {},
     onEdit: (() -> Unit)? = null
 ) {
     var selectedPhotoIndex by remember { mutableStateOf<Int?>(null) }
@@ -148,12 +146,44 @@ fun GalleryContent(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showGalleryInfoDialog by remember { mutableStateOf(false) }
     
-    var internalSelectedTabIndex by remember { mutableIntStateOf(0) }
-    val selectedTabIndex = externalTabIndex ?: internalSelectedTabIndex
-    val onTabSelected = onExternalTabSelected ?: { internalSelectedTabIndex = it }
-    
     val inSelectionMode = selectedPhotos.isNotEmpty()
     val context = LocalContext.current
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                if (inputStream != null) {
+                    val exif = android.media.ExifInterface(inputStream)
+                    val latLong = FloatArray(2)
+                    val hasLatLong = exif.getLatLong(latLong)
+                    
+                    android.util.Log.d("GalleryScreen", "Image selected: $uri")
+                    android.util.Log.d("GalleryScreen", "Has Location: $hasLatLong")
+                    if (hasLatLong) {
+                        android.util.Log.d("GalleryScreen", "Location: Lat ${latLong[0]}, Lng ${latLong[1]}")
+                    }
+                    
+                    val date = exif.getAttribute(android.media.ExifInterface.TAG_DATETIME)
+                    android.util.Log.d("GalleryScreen", "Date: $date")
+                    
+                    val make = exif.getAttribute(android.media.ExifInterface.TAG_MAKE)
+                    val model = exif.getAttribute(android.media.ExifInterface.TAG_MODEL)
+                    android.util.Log.d("GalleryScreen", "Make: $make, Model: $model")
+                    
+                    val width = exif.getAttribute(android.media.ExifInterface.TAG_IMAGE_WIDTH)
+                    val length = exif.getAttribute(android.media.ExifInterface.TAG_IMAGE_LENGTH)
+                    android.util.Log.d("GalleryScreen", "Size: $width x $length")
+                    
+                    inputStream.close()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("GalleryScreen", "Error reading metadata", e)
+            }
+        }
+    }
 
     if (inSelectionMode) {
         BackHandler {
@@ -202,10 +232,12 @@ fun GalleryContent(
                     style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                IconButton(onClick = onNavigateToSettings) {
+                IconButton(onClick = {
+                    photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }) {
                     Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = "Settings",
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = "Add Photo",
                         tint = MaterialTheme.colorScheme.secondary
                     )
                 }
@@ -219,16 +251,7 @@ fun GalleryContent(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Tabs
-            if (showTabs) {
-                GalleryTabs(
-                    selectedTabIndex = selectedTabIndex,
-                    onTabSelected = onTabSelected
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-            } else {
-                Spacer(modifier = Modifier.height(8.dp))
-            }
+            Spacer(modifier = Modifier.height(8.dp))
 
             if (uiState.photosGroupedByDate.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -246,103 +269,28 @@ fun GalleryContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 120.dp) // Leave space for bottom nav
                 ) {
-                    if (selectedTabIndex == 1) {
-                        items(allPhotos, key = { it.id }) { photo ->
-                            val isSelected = selectedPhotos.contains(photo)
-                            GalleryPhotoItem(
-                                photo = photo,
-                                isSelected = isSelected,
-                                modifier = Modifier.animateItem(),
-                                onClick = {
-                                    if (inSelectionMode) {
-                                        if (isSelected) selectedPhotos.remove(photo) else selectedPhotos.add(
-                                            photo
-                                        )
-                                    } else {
-                                        selectedPhotoIndex =
-                                            allPhotos.indexOf(photo).takeIf { it >= 0 }
-                                    }
-                                },
-                                onLongClick = {
-                                    if (allowSelection && !inSelectionMode) {
-                                        selectedPhotos.add(photo)
-                                    }
+                    items(allPhotos, key = { it.id }) { photo ->
+                        val isSelected = selectedPhotos.contains(photo)
+                        GalleryPhotoItem(
+                            photo = photo,
+                            isSelected = isSelected,
+                            modifier = Modifier.animateItem(),
+                            onClick = {
+                                if (inSelectionMode) {
+                                    if (isSelected) selectedPhotos.remove(photo) else selectedPhotos.add(
+                                        photo
+                                    )
+                                } else {
+                                    selectedPhotoIndex =
+                                        allPhotos.indexOf(photo).takeIf { it >= 0 }
                                 }
-                            )
-                        }
-                    } else {
-                        val isLocationGroup = selectedTabIndex == 2
-                        val groupedData = if (isLocationGroup) uiState.photosGroupedByLocation else uiState.photosGroupedByDate
-                        val expandedKeys = if (isLocationGroup) uiState.expandedLocations else uiState.expandedDates
-
-                        val sortedKeys = if (isLocationGroup) {
-                            groupedData.keys.sortedByDescending { groupedData[it]?.size ?: 0 }
-                        } else {
-                            groupedData.keys.sortedDescending()
-                        }
-
-                        sortedKeys.forEach { keyStr ->
-                            val photos = groupedData[keyStr] ?: emptyList()
-                            val isExpanded = expandedKeys.contains(keyStr)
-                            val visiblePhotos = if (isExpanded) photos else photos.take(3)
-                            val allSelected =
-                                photos.isNotEmpty() && photos.all { selectedPhotos.contains(it) }
-                            val noneSelected = photos.none { selectedPhotos.contains(it) }
-                            val selectionState = when {
-                                allSelected -> ToggleableState.On
-                                noneSelected -> ToggleableState.Off
-                                else -> ToggleableState.Indeterminate
+                            },
+                            onLongClick = {
+                                if (allowSelection && !inSelectionMode) {
+                                    selectedPhotos.add(photo)
+                                }
                             }
-
-                            // Header
-                            item(span = { GridItemSpan(3) }) {
-                                GalleryDateHeader(
-                                    dateStr = keyStr,
-                                    count = photos.size,
-                                    isExpanded = isExpanded,
-                                    onToggle = { 
-                                        if (isLocationGroup) onToggleLocation(keyStr) 
-                                        else onToggleDate(keyStr) 
-                                    },
-                                    inSelectionMode = inSelectionMode,
-                                    selectionState = selectionState,
-                                    onSelectAllToggle = {
-                                        if (allSelected) {
-                                            selectedPhotos.removeAll(photos)
-                                        } else {
-                                            val newSelection =
-                                                photos.filter { !selectedPhotos.contains(it) }
-                                            selectedPhotos.addAll(newSelection)
-                                        }
-                                    }
-                                )
-                            }
-
-                            // Photos
-                            items(visiblePhotos, key = { it.id }) { photo ->
-                                val isSelected = selectedPhotos.contains(photo)
-                                GalleryPhotoItem(
-                                    photo = photo,
-                                    isSelected = isSelected,
-                                    modifier = Modifier.animateItem(),
-                                    onClick = {
-                                        if (inSelectionMode) {
-                                            if (isSelected) selectedPhotos.remove(photo) else selectedPhotos.add(
-                                                photo
-                                            )
-                                        } else {
-                                            selectedPhotoIndex =
-                                                allPhotos.indexOf(photo).takeIf { it >= 0 }
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (allowSelection && !inSelectionMode) {
-                                            selectedPhotos.add(photo)
-                                        }
-                                    }
-                                )
-                            }
-                        }
+                        )
                     }
                 }
             }
@@ -391,139 +339,7 @@ fun GalleryContent(
     }
 }
 
-@Composable
-fun GalleryTabs(
-    selectedTabIndex: Int,
-    onTabSelected: (Int) -> Unit
-) {
-    val scrollState = rememberScrollState()
 
-    val tabs = listOf(
-        Triple("By Time", Icons.Outlined.AccessTime, true),
-        Triple("All Photos", Icons.Outlined.GridView, false),
-        Triple("By Location", Icons.Outlined.LocationOn, false)
-    )
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollState),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        tabs.forEachIndexed { index, tab ->
-            val isSelected = selectedTabIndex == index
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                    .border(
-                        width = 1.dp,
-                        color = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    .clickable { onTabSelected(index) }
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = tab.second,
-                    contentDescription = tab.first,
-                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
-                )
-                Text(
-                    text = tab.first,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = if (isSelected) MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold) else MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun GalleryDateHeader(
-    dateStr: String,
-    count: Int,
-    isExpanded: Boolean,
-    onToggle: () -> Unit,
-    inSelectionMode: Boolean = false,
-    selectionState: ToggleableState = ToggleableState.Off,
-    onSelectAllToggle: () -> Unit = {}
-) {
-    // Basic date parsing and formatting logic to match "Today • May 24, 2025" or similar
-    // We expect dateStr in "yyyy-MM-dd"
-    val displayDate = try {
-        val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val date = parser.parse(dateStr)
-        val formatter = SimpleDateFormat("MMMM dd, yyyy", Locale.US)
-        val formatted = date?.let { formatter.format(it) } ?: dateStr
-        formatted
-    } catch (_: Exception) {
-        dateStr
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .padding(vertical = 12.dp, horizontal = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.CalendarToday,
-                contentDescription = "Date",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-            Text(
-                text = displayDate,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (inSelectionMode) {
-                TriStateCheckbox(
-                    state = selectionState,
-                    onClick = onSelectAllToggle,
-                    modifier = Modifier.scale(0.85f).size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-            }
-            Row(
-                modifier = Modifier
-                    .noRippleClickable { onToggle() },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = "$count Photos",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                val rotation by animateFloatAsState(targetValue = if (isExpanded) 180f else 0f)
-                Icon(
-                    imageVector = Icons.Filled.KeyboardArrowDown,
-                    contentDescription = "Toggle",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .size(16.dp)
-                        .graphicsLayer { rotationZ = rotation }
-                )
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

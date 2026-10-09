@@ -87,16 +87,15 @@ fun MainScreen(
 
                 }
                 entry<MainTab.Gallery> {
-                    GalleryScreen(
-                        onNavigateToSettings = { backStack.add(Screen.Settings) }
-                    )
+                    GalleryScreen()
                 }
                 entry<MainTab.Chat> {
                     DummyScreen("Coming Soon")
                 }
                 entry<MainTab.Profile> {
                     ProfileScreen(
-                        onNavigateToEditProfile = { backStack.add(Screen.EditProfile) }
+                        onNavigateToEditProfile = { backStack.add(Screen.EditProfile) },
+                        onNavigateToSettings = { backStack.add(Screen.Settings) }
                     )
                 }
                 entry<Screen.Settings> {

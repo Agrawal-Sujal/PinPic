@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sunflower.pinpic.common.Result
 import com.sunflower.pinpic.data.local.datastore.DataStoreManager
+import com.sunflower.pinpic.data.remote.ImageUploader
 import com.sunflower.pinpic.domain.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +34,8 @@ data class EditProfileUiState(
 @HiltViewModel
 class EditProfileViewModel @Inject constructor(
     private val dataStoreManager: DataStoreManager,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+//    private val imageUploader: ImageUploader
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EditProfileUiState())
@@ -75,29 +77,32 @@ class EditProfileViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             
-            var imageBytes: ByteArray? = null
-            var imageName: String? = null
+//            var imageBytes: ByteArray? = null
+            val imageName: String = _uiState.value.selectedImageName?:"phtoo.jpg"
             
             val selectedUri = _uiState.value.selectedImageUri
-            if (selectedUri != null) {
-                try {
-                    val inputStream = context.contentResolver.openInputStream(selectedUri)
-                    if (inputStream != null) {
-                        imageBytes = withContext(Dispatchers.IO) { inputStream.readBytes() }
-                        imageName = _uiState.value.selectedImageName ?: "photo.jpg"
-                    }
-                } catch (e: Exception) {
-                    _uiState.update { it.copy(isLoading = false, error = "Could not read image file") }
-                    return@launch
-                }
-            }
+//            if (selectedUri != null) {
+//                try {
+//
+//                    val imageName = _uiState.value.selectedImageName?:"photo.jpg"
+//                    val isSuccess = imageUploader.uploadPhotoToPresignedUrl()
+////                    val inputStream = context.contentResolver.openInputStream(selectedUri)
+////                    if (inputStream != null) {
+////                        imageBytes = withContext(Dispatchers.IO) { inputStream.readBytes() }
+////                        imageName = _uiState.value.selectedImageName ?: "photo.jpg"
+////                    }
+//                } catch (e: Exception) {
+//                    _uiState.update { it.copy(isLoading = false, error = "Could not read image file") }
+//                    return@launch
+//                }
+//            }
 
             val result = userRepository.updateProfile(
                 fullName = _uiState.value.fullName,
                 mobileNumber = _uiState.value.mobileNumber,
                 locale = _uiState.value.locale,
                 pictureUrl = _uiState.value.pictureUrl,
-                imageBytes = imageBytes,
+                selectedUri = selectedUri,
                 imageName = imageName
             )
             

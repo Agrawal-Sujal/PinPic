@@ -90,7 +90,6 @@ fun SelectedClusterGallerySheet(
                 onDeletePhotos = onDeletePhotos,
                 allPhotos = photos,
                 showHeader = false,
-                showTabs = true,
                 onEdit = null
             )
             

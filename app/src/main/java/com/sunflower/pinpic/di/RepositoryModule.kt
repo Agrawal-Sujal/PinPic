@@ -1,5 +1,6 @@
 package com.sunflower.pinpic.di
 
+
 import com.sunflower.pinpic.data.repository.PhotosRepositoryImpl
 import com.sunflower.pinpic.data.repository.UserRepositoryImpl
 import com.sunflower.pinpic.domain.repository.PhotosRepository
@@ -25,4 +26,6 @@ abstract class RepositoryModule {
     abstract fun bindUserRepository(
         userRepositoryImpl: UserRepositoryImpl
     ): UserRepository
+
+
 }
