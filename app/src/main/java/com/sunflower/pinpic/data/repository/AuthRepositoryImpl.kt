@@ -27,8 +27,9 @@ class AuthRepositoryImpl @Inject constructor(
                 dataStoreManager.saveAuthInfo(
                     jwt = result.data.jwt,
                     username = result.data.username,
-                    email = email,
-                    pictureUrl = null // Backend doesn't return this yet for simple login
+                    email = result.data.emailId,
+                    pictureUrl = result.data.profileUrl,
+                    userId = result.data.userId
                 )
                 Result.Success(Unit)
             }
@@ -52,8 +53,9 @@ class AuthRepositoryImpl @Inject constructor(
                 dataStoreManager.saveAuthInfo(
                     jwt = result.data.jwt,
                     username = result.data.username,
-                    email = null, // Backend doesn't return this in Google output in the description
-                    pictureUrl = null
+                    email = result.data.emailId,
+                    pictureUrl = result.data.profileUrl,
+                    userId = result.data.userId
                 )
                 Result.Success(Unit)
             }
@@ -73,10 +75,7 @@ class AuthRepositoryImpl @Inject constructor(
             is Result.Success -> {
                 // Update username in DataStore
                 dataStoreManager.saveAuthInfo(
-                    jwt = jwt,
-                    username = username,
-                    email = null, 
-                    pictureUrl = null 
+                    username = username
                 )
                 Result.Success(Unit)
             }

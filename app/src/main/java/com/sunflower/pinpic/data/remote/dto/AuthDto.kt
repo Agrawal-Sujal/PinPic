@@ -26,8 +26,11 @@ data class SetUsernameRequest(
 
 @Serializable
 data class AuthResponse(
-    val jwt: String,
-    val username: String? = null
+    val jwt: String = "",
+    val username: String? = null,
+    val userId: String = "",
+    val profileUrl: String? = null,
+    val emailId: String = ""
 )
 
 @Serializable

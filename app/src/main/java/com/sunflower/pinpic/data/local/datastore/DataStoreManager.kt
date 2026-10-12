@@ -23,21 +23,34 @@ class DataStoreManager @Inject constructor(
         val USERNAME = stringPreferencesKey("username")
         val EMAIL = stringPreferencesKey("email")
         val PICTURE_URL = stringPreferencesKey("picture_url")
+        val USER_ID = stringPreferencesKey("user_id")
         val FULL_NAME = stringPreferencesKey("full_name")
         val MOBILE_NUMBER = stringPreferencesKey("mobile_number")
         val THEME_MODE = stringPreferencesKey("theme_mode")
     }
 
-    suspend fun saveAuthInfo(jwt: String, username: String?, email: String?, pictureUrl: String?) {
+    suspend fun saveAuthInfo(
+        jwt: String? = null,
+        username: String? = null,
+        email: String? = null,
+        pictureUrl: String? = null,
+        userId: String? = null
+    ) {
         context.dataStore.edit { prefs ->
-            prefs[JWT_TOKEN] = jwt
+            if (jwt != null) prefs[JWT_TOKEN] = jwt
             if (username != null) prefs[USERNAME] = username
             if (email != null) prefs[EMAIL] = email
             if (pictureUrl != null) prefs[PICTURE_URL] = pictureUrl
+            if (userId != null) prefs[USER_ID] = userId
         }
     }
 
-    suspend fun updateProfileInfo(fullName: String?, email: String?, mobileNumber: String?, pictureUrl: String?) {
+    suspend fun updateProfileInfo(
+        fullName: String?,
+        email: String?,
+        mobileNumber: String?,
+        pictureUrl: String?
+    ) {
         context.dataStore.edit { prefs ->
             if (fullName != null) prefs[FULL_NAME] = fullName
             if (email != null) prefs[EMAIL] = email
@@ -54,13 +67,14 @@ class DataStoreManager @Inject constructor(
             prefs.remove(PICTURE_URL)
             prefs.remove(FULL_NAME)
             prefs.remove(MOBILE_NUMBER)
+            prefs.remove(USER_ID)
         }
     }
 
     val jwtTokenFlow: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[JWT_TOKEN]
     }
-    
+
     val usernameFlow: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[USERNAME]
     }
@@ -71,6 +85,10 @@ class DataStoreManager @Inject constructor(
 
     val pictureUrlFlow: Flow<String?> = context.dataStore.data.map { prefs ->
         prefs[PICTURE_URL]
+    }
+
+    val userIdFlow: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[USER_ID]
     }
 
     val fullNameFlow: Flow<String?> = context.dataStore.data.map { prefs ->

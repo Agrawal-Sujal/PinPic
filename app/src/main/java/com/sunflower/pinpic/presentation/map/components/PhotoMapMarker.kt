@@ -1,5 +1,6 @@
 package com.sunflower.pinpic.presentation.map.components
 
+import android.util.Log
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -73,25 +74,10 @@ fun PhotoMapMarker(
     onClick: () -> Unit,
     color: Color
 ) {
-//    var thumbnailUri by remember { mutableStateOf<String?>(null) }
-//
-//    LaunchedEffect(node.id) {
-//        if (!node.isCluster && thumbnailUri == null) {
-//            thumbnailUri = viewModel.getThumbnailForNode(node.id)
-//        }
-//    }
-//
-//    val photoModel = if (thumbnailUri != null) {
-//        null
-////        thumbnailUri
-////        File(thumbnailUri!!)
-//    } else {
-//        null
-//    }
-
+    Log.d("PhotoMapMarker", node.thumbnailUrl.toString())
     val painter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(LocalContext.current)
-            .data(node.thumbnailUri)
+            .data(node.thumbnailUrl)
             .size(152)
             .crossfade(false)
             .allowHardware(false)
@@ -104,7 +90,7 @@ fun PhotoMapMarker(
     MarkerComposable(
         keys = arrayOf<Any>(
             node.id,
-            node.thumbnailUri ?: "",
+            node.thumbnailUrl ?: "",
             painter.state is AsyncImagePainter.State.Success,
             node.isCluster
         ),

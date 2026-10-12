@@ -51,7 +51,7 @@ fun SelectedPhotoBottomCard(
         ) {
             // Thumbnail
             AsyncImage(
-                model = photo.uri ?: photo.url,
+                model = photo.photoUrl,
                 contentDescription = "Photo thumbnail",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -82,7 +82,7 @@ fun SelectedPhotoBottomCard(
                             Spacer(modifier = Modifier.width(4.dp))
                             
                             Text(
-                                text = photo.locationName ?: "Unknown Location",
+                                text = photo.location?.locationName ?: "Unknown Location",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,

@@ -4,7 +4,8 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.sunflower.pinpic.data.local.entity.ClusterPointEntity
+import com.sunflower.pinpic.data.local.entity.ClusterEntity
+import com.sunflower.pinpic.data.local.entity.ClusterPhotosEntity
 import com.sunflower.pinpic.data.local.entity.PhotoEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -14,44 +15,55 @@ interface PhotoDao {
     @JvmSuppressWildcards
     suspend fun insertPhoto(photo: PhotoEntity): Long
 
-    @Query("SELECT * FROM photos ORDER BY id DESC")
+    @Query("SELECT * FROM photos ORDER BY localPhotoId DESC")
     suspend fun getAllPhotos(): List<PhotoEntity>
 
-    @Query("SELECT * FROM photos ORDER BY id DESC")
+    @Query("SELECT * FROM photos ORDER BY localPhotoId DESC")
     fun getAllPhotosFlow(): Flow<List<PhotoEntity>>
 
-    @Query("SELECT * FROM photos WHERE clusterId IS NULL ORDER BY id DESC")
+    @Query("SELECT * FROM photos WHERE localPhotoId NOT IN (SELECT photoId FROM cluster_photos) ORDER BY localPhotoId DESC")
     suspend fun getUnclusteredPhotos(): List<PhotoEntity>
 
-    @Query("SELECT * FROM photos WHERE clusterId IS NULL ORDER BY id DESC")
+    @Query("SELECT * FROM photos WHERE localPhotoId NOT IN (SELECT photoId FROM cluster_photos) ORDER BY localPhotoId DESC")
     fun getUnclusteredPhotosFlow(): Flow<List<PhotoEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertClusterPoint(clusterPoint: ClusterPointEntity): Long
+    suspend fun insertCluster(cluster: ClusterEntity): Long
 
-    @Query("SELECT * FROM cluster_points")
-    suspend fun getAllClusterPoints(): List<ClusterPointEntity>
+    @Query("SELECT * FROM clusters")
+    suspend fun getAllClusters(): List<ClusterEntity>
 
-    @Query("SELECT * FROM cluster_points")
-    fun getAllClusterPointsFlow(): Flow<List<ClusterPointEntity>>
+    @Query("SELECT * FROM clusters")
+    fun getAllClustersFlow(): Flow<List<ClusterEntity>>
 
-    @Query("SELECT * FROM photos WHERE clusterId IN (:clusterIds)")
-    suspend fun getPhotosByClusterIds(clusterIds: List<Long>): List<PhotoEntity>
+    @Query("SELECT p.* FROM photos p INNER JOIN cluster_photos cp ON p.localPhotoId = cp.photoId WHERE cp.clusterId IN (:clusterIds)")
+    suspend fun getPhotosByClusterIds(clusterIds: List<Int>): List<PhotoEntity>
+
+    @Query("SELECT * FROM photos WHERE localPhotoId IN (:photoIds)")
+    suspend fun getPhotosByIds(photoIds: List<Int>): List<PhotoEntity>
+
+    @Query("SELECT p.* FROM photos p INNER JOIN cluster_photos cp ON p.localPhotoId = cp.photoId WHERE cp.clusterId = :clusterId LIMIT 1")
+    suspend fun getFirstPhotoForCluster(clusterId: Int): PhotoEntity?
 
     @androidx.room.Delete
     suspend fun deletePhotos(photos: List<PhotoEntity>)
 
-    @Query("SELECT * FROM cluster_points WHERE id IN (:clusterIds)")
-    suspend fun getClusterPointsByIds(clusterIds: List<Long>): List<ClusterPointEntity>
+    @Query("SELECT * FROM clusters WHERE localClusterId IN (:clusterIds)")
+    suspend fun getClustersByIds(clusterIds: List<Int>): List<ClusterEntity>
 
     @androidx.room.Delete
-    suspend fun deleteClusterPoints(clusterPoints: List<ClusterPointEntity>)
+    suspend fun deleteClusters(clusters: List<ClusterEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertClusterPhoto(clusterPhoto: ClusterPhotosEntity)
 
     @androidx.room.Transaction
-    suspend fun insertClusterAndPhotos(cluster: ClusterPointEntity, photos: List<PhotoEntity>): Long {
-        val clusterId = insertClusterPoint(cluster)
-        val photosWithCluster = photos.map { it.copy(clusterId = clusterId) }
-        photosWithCluster.forEach { insertPhoto(it) }
-        return clusterId
+    suspend fun insertClusterAndPhotos(cluster: ClusterEntity, photos: List<PhotoEntity>): Long {
+        val clusterId = insertCluster(cluster).toInt()
+        photos.forEach { 
+            val photoId = if (it.localPhotoId == 0) insertPhoto(it).toInt() else { insertPhoto(it); it.localPhotoId }
+            insertClusterPhoto(ClusterPhotosEntity(photoId, clusterId))
+        }
+        return clusterId.toLong()
     }
 }

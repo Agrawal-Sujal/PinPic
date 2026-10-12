@@ -36,20 +36,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.ui.graphics.Color
+import com.sunflower.pinpic.domain.model.Cluster
 
 @Composable
 fun SelectedClusterGallerySheet(
     photos: List<Photo>,
     onClose: () -> Unit,
     onDeletePhotos: (List<Photo>) -> Unit,
-    clusterPoint: com.sunflower.pinpic.domain.model.ClusterPoint? = null,
-    onEditClusterPoint: ((com.sunflower.pinpic.domain.model.ClusterPoint) -> Unit)? = null,
+    cluster: Cluster? = null,
+    onEditCluster: ((Cluster) -> Unit)? = null,
     showThumbnailAndLocation: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     var showEditDialog by remember { mutableStateOf(false) }
-    val groupedByDate = remember(photos) { photos.groupBy { it.date ?: "Unknown Date" } }
-    val groupedByLocation = remember(photos) { photos.groupBy { it.locationName ?: "Unknown Location" } }
+    val groupedByDate = remember(photos) { photos.groupBy { it.takenAt ?: "Unknown Date" } }
+    val groupedByLocation = remember(photos) { photos.groupBy { it.location?.locationName ?: "Unknown Location" } }
     
     var uiState by remember(photos) {
         mutableStateOf(
@@ -93,7 +94,7 @@ fun SelectedClusterGallerySheet(
                 onEdit = null
             )
             
-            if (clusterPoint != null && onEditClusterPoint != null) {
+            if (cluster != null && onEditCluster != null) {
                 var expanded by remember { mutableStateOf(false) }
                 Box(
                     modifier = Modifier
@@ -102,7 +103,6 @@ fun SelectedClusterGallerySheet(
                 ) {
                     IconButton(
                         onClick = { expanded = true },
-//                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f), shape = CircleShape)
                     ) {
                         Icon(androidx.compose.material.icons.Icons.Default.MoreVert, contentDescription = "Menu")
                     }
@@ -123,13 +123,13 @@ fun SelectedClusterGallerySheet(
         }
     }
     
-    if (showEditDialog && clusterPoint != null && onEditClusterPoint != null) {
+    if (showEditDialog && cluster != null && onEditCluster != null) {
         EditClusterMetadataDialog(
-            clusterPoint = clusterPoint,
+            cluster = cluster,
             photos = photos,
             onDismiss = { showEditDialog = false },
-            onSave = { updatedPoint ->
-                onEditClusterPoint(updatedPoint)
+            onSave = { updatedCluster ->
+                onEditCluster(updatedCluster)
                 showEditDialog = false
             }
         )
@@ -138,12 +138,12 @@ fun SelectedClusterGallerySheet(
 
 @Composable
 fun EditClusterMetadataDialog(
-    clusterPoint: com.sunflower.pinpic.domain.model.ClusterPoint,
+    cluster: Cluster,
     photos: List<Photo>,
     onDismiss: () -> Unit,
-    onSave: (com.sunflower.pinpic.domain.model.ClusterPoint) -> Unit
+    onSave: (Cluster) -> Unit
 ) {
-    var selectedThumbnailUri by remember { mutableStateOf(clusterPoint.thumbnailUri) }
+    var selectedThumbnailUri by remember { mutableStateOf(cluster.thumbnail?.photoUrl) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -198,8 +198,8 @@ fun EditClusterMetadataDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     items(photos) { photo ->
-                        val uri = photo.uri ?: photo.url
-                        val isSelected = uri == selectedThumbnailUri || (selectedThumbnailUri == null && uri == (photos.firstOrNull()?.uri ?: photos.firstOrNull()?.url))
+                        val uri = photo.photoUrl
+                        val isSelected = uri == selectedThumbnailUri || (selectedThumbnailUri == null && uri == (photos.firstOrNull()?.photoUrl))
                         AsyncImage(
                             model = uri,
                             contentDescription = "Thumbnail option",
@@ -218,7 +218,7 @@ fun EditClusterMetadataDialog(
                                 }
                         )
                     }
-                    if (selectedThumbnailUri != null && photos.none { it.uri == selectedThumbnailUri || it.url == selectedThumbnailUri }) {
+                    if (selectedThumbnailUri != null && photos.none { it.photoUrl == selectedThumbnailUri }) {
                         item {
                             AsyncImage(
                                 model = selectedThumbnailUri,
@@ -245,10 +245,12 @@ fun EditClusterMetadataDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                val updatedPoint = clusterPoint.copy(
-                    thumbnailUri = selectedThumbnailUri
+                // Here we would ideally want to update the Photo object that is the thumbnail.
+                // Since this is a simple dialog we just save a mock Photo with the new URI.
+                val updatedCluster = cluster.copy(
+                    thumbnail = cluster.thumbnail?.copy(photoUrl = selectedThumbnailUri ?: "")
                 )
-                onSave(updatedPoint)
+                onSave(updatedCluster)
             }) {
                 Text("Save")
             }

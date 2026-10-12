@@ -1,9 +1,8 @@
 package com.sunflower.pinpic.di
 
-
-import com.sunflower.pinpic.data.repository.PhotosRepositoryImpl
+import com.sunflower.pinpic.data.repository.LocalPhotoRepository
 import com.sunflower.pinpic.data.repository.UserRepositoryImpl
-import com.sunflower.pinpic.domain.repository.PhotosRepository
+import com.sunflower.pinpic.domain.repository.PhotoRepository
 import com.sunflower.pinpic.domain.repository.UserRepository
 import dagger.Binds
 import dagger.Module
@@ -17,15 +16,13 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
-    abstract fun bindPhotosRepository(
-        photosRepositoryImpl: PhotosRepositoryImpl
-    ): PhotosRepository
+    abstract fun bindPhotoRepository(
+        localPhotoRepository: LocalPhotoRepository
+    ): PhotoRepository
 
     @Binds
     @Singleton
     abstract fun bindUserRepository(
         userRepositoryImpl: UserRepositoryImpl
     ): UserRepository
-
-
 }

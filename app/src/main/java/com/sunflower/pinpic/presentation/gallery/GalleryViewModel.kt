@@ -3,7 +3,7 @@ package com.sunflower.pinpic.presentation.gallery
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sunflower.pinpic.domain.model.Photo
-import com.sunflower.pinpic.domain.repository.PhotosRepository
+import com.sunflower.pinpic.domain.repository.PhotoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,7 +23,7 @@ data class GalleryUiState(
 
 @HiltViewModel
 class GalleryViewModel @Inject constructor(
-    private val photosRepository: PhotosRepository
+    private val photoRepository: PhotoRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(GalleryUiState())
@@ -37,11 +37,11 @@ class GalleryViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             
-            photosRepository.getAllPhotosFlow().collect { result ->
+            photoRepository.getAllPhotosFlow().collect { result ->
                 when (result) {
                     is Result.Success -> {
                         val groupedByDate = result.data.groupBy { photo ->
-                            val rawDate = photo.date ?: "Unknown Date"
+                            val rawDate = photo.takenAt ?: "Unknown Date"
                             try {
                                 val parserLong = java.text.SimpleDateFormat("MMMM dd, yyyy", java.util.Locale.US)
                                 val parsed = parserLong.parse(rawDate)
@@ -54,7 +54,7 @@ class GalleryViewModel @Inject constructor(
                                 rawDate
                             }
                         }
-                        val groupedByLocation = result.data.groupBy { it.locationName ?: "Unknown Location" }
+                        val groupedByLocation = result.data.groupBy { it.location?.locationName ?: "Unknown Location" }
                         _uiState.value = _uiState.value.copy(
                             photosGroupedByDate = groupedByDate,
                             photosGroupedByLocation = groupedByLocation,
@@ -94,7 +94,7 @@ class GalleryViewModel @Inject constructor(
 
     fun deletePhotos(photos: List<Photo>) {
         viewModelScope.launch {
-            photosRepository.deletePhotos(photos)
+            photoRepository.deletePhotos(photos)
         }
     }
 }

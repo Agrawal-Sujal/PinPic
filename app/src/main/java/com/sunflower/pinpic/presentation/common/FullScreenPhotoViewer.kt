@@ -135,11 +135,7 @@ fun FullScreenPhotoViewer(
                     modifier = Modifier.fillMaxSize()
                 ) { page ->
                     val photo = photos[page]
-                    val model = if (photo.uri != null) {
-                        File(photo.uri)
-                    } else {
-                        photo.url
-                    }
+                    val model = File(photo.photoUrl)
                     
                     AsyncImage(
                         model = model,

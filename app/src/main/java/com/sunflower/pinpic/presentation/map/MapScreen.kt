@@ -154,7 +154,11 @@ fun MapScreen(
     var expandedLocations by remember { mutableStateOf(emptySet<String>()) }
     var isClusterClick by remember { mutableStateOf(false) }
     var selectedClusterPhotos by remember { mutableStateOf<List<Photo>?>(null) }
-    var selectedClusterPoint by remember { mutableStateOf<com.sunflower.pinpic.domain.model.ClusterPoint?>(null) }
+    var selectedCluster by remember {
+        mutableStateOf<com.sunflower.pinpic.domain.model.Cluster?>(
+            null
+        )
+    }
     var sheetHeightDp by remember { mutableStateOf(0.dp) }
 
     val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
@@ -165,8 +169,8 @@ fun MapScreen(
     )
 
     val bottomSheetUiState = remember(bottomSheetPhotos, expandedDates, expandedLocations) {
-        val byDate = bottomSheetPhotos.groupBy { it.date ?: "Unknown Date" }
-        val byLoc = bottomSheetPhotos.groupBy { it.locationName ?: "Unknown Location" }
+        val byDate = bottomSheetPhotos.groupBy { it.takenAt ?: "Unknown Date" }
+        val byLoc = bottomSheetPhotos.groupBy { it.location?.locationName ?: "Unknown Location" }
         GalleryUiState(
             photosGroupedByDate = byDate,
             photosGroupedByLocation = byLoc,
@@ -190,13 +194,13 @@ fun MapScreen(
         if (uris.isNotEmpty()) {
             val isFirstSelection = pendingUris.isEmpty()
             pendingUris = (pendingUris + uris).distinct()
-            
+
             if (isFirstSelection) {
                 val calendar = Calendar.getInstance()
                 dateText = SimpleDateFormat("dd/MM/yyyy", Locale.US).format(calendar.time)
                 timeText = SimpleDateFormat("hh:mm a", Locale.US).format(calendar.time)
             }
-            
+
             addPhotoMode = AddPhotoMode.PHOTOS_SELECTED
         }
     }
@@ -291,7 +295,7 @@ fun MapScreen(
                 isClusterClick = false
                 selectedAddPhotoLocation = null
                 selectedClusterPhotos = null
-                selectedClusterPoint = null
+                selectedCluster = null
             }
         }
     }
@@ -334,78 +338,89 @@ fun MapScreen(
                     }
             ) {
                 if (showGallerySheet) {
-                GalleryContent(
-                    uiState = bottomSheetUiState,
-                    onToggleDate = { date ->
-                        expandedDates =
-                            if (expandedDates.contains(date)) expandedDates - date else expandedDates + date
-                    },
-                    onToggleLocation = { loc ->
-                        expandedLocations =
-                            if (expandedLocations.contains(loc)) expandedLocations - loc else expandedLocations + loc
-                    },
-                    onDeletePhotos = { photos ->
-                        viewModel.deletePhotos(photos)
-                        bottomSheetPhotos = bottomSheetPhotos.filter { it !in photos }
-                        if (bottomSheetPhotos.isEmpty()) {
-                            showGallerySheet = false
-                        }
-                    },
-                    allPhotos = bottomSheetPhotos,
-                    allowSelection = false
-                )
-            } else if (addPhotoMode != AddPhotoMode.NONE) {
-                AddPhotoBottomSheetContent(
-                    addPhotoMode = addPhotoMode,
-                    pendingUris = pendingUris,
-                    onSelectPhotosClick = {
-                        photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    },
-                    dateText = dateText,
-                    onDateTextChange = { dateText = it },
-                    timeText = timeText,
-                    onTimeTextChange = { timeText = it },
-                    onDatePickerClick = { showDatePicker = true },
-                    onTimePickerClick = { showTimePicker = true },
-                    onNextClick = {
-                        if (selectedAddPhotoLocation != null) {
-                            val finalDateStr = try {
-                                if (dateText.isNotBlank()) {
-                                    val parsedDate = SimpleDateFormat("dd/MM/yyyy", Locale.US).parse(dateText)
-                                    if (parsedDate != null) {
-                                        SimpleDateFormat("yyyy-MM-dd", Locale.US).format(parsedDate)
-                                    } else {
-                                        dateText
-                                    }
-                                } else null
-                            } catch (_: Exception) {
-                                dateText.ifBlank { null }
+                    GalleryContent(
+                        uiState = bottomSheetUiState,
+                        onToggleDate = { date ->
+                            expandedDates =
+                                if (expandedDates.contains(date)) expandedDates - date else expandedDates + date
+                        },
+                        onToggleLocation = { loc ->
+                            expandedLocations =
+                                if (expandedLocations.contains(loc)) expandedLocations - loc else expandedLocations + loc
+                        },
+                        onDeletePhotos = { photos ->
+                            viewModel.deletePhotos(photos)
+                            bottomSheetPhotos = bottomSheetPhotos.filter { it !in photos }
+                            if (bottomSheetPhotos.isEmpty()) {
+                                showGallerySheet = false
                             }
-
-                            viewModel.importPhotos(
-                                context,
-                                pendingUris,
-                                selectedAddPhotoLocation!!,
-                                finalDateStr,
-                                timeText.ifBlank { null }
+                        },
+                        allPhotos = bottomSheetPhotos,
+                        allowSelection = false
+                    )
+                } else if (addPhotoMode != AddPhotoMode.NONE) {
+                    AddPhotoBottomSheetContent(
+                        addPhotoMode = addPhotoMode,
+                        pendingUris = pendingUris,
+                        onSelectPhotosClick = {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(
+                                    ActivityResultContracts.PickVisualMedia.ImageOnly
+                                )
                             )
+                        },
+                        dateText = dateText,
+                        onDateTextChange = { dateText = it },
+                        timeText = timeText,
+                        onTimeTextChange = { timeText = it },
+                        onDatePickerClick = { showDatePicker = true },
+                        onTimePickerClick = { showTimePicker = true },
+                        onNextClick = {
+                            if (selectedAddPhotoLocation != null) {
+                                val finalDateStr = try {
+                                    if (dateText.isNotBlank()) {
+                                        val parsedDate = SimpleDateFormat(
+                                            "dd/MM/yyyy",
+                                            Locale.US
+                                        ).parse(dateText)
+                                        if (parsedDate != null) {
+                                            SimpleDateFormat("yyyy-MM-dd", Locale.US).format(
+                                                parsedDate
+                                            )
+                                        } else {
+                                            dateText
+                                        }
+                                    } else null
+                                } catch (_: Exception) {
+                                    dateText.ifBlank { null }
+                                }
+
+                                viewModel.importPhotos(
+                                    context,
+                                    pendingUris,
+                                    selectedAddPhotoLocation!!,
+                                    finalDateStr,
+                                    timeText.ifBlank { null }
+                                )
+                            }
+                            addPhotoMode = AddPhotoMode.NONE
+                            selectedAddPhotoLocation = null
+                            pendingUris = emptyList()
+                            dateText = ""
+                            timeText = ""
                         }
-                        addPhotoMode = AddPhotoMode.NONE
-                        selectedAddPhotoLocation = null
-                        pendingUris = emptyList()
-                        dateText = ""
-                        timeText = ""
-                    }
-                )
-            } else {
-                Spacer(modifier = Modifier.height(1.dp))
-            }
+                    )
+                } else {
+                    Spacer(modifier = Modifier.height(1.dp))
+                }
             }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
             GoogleMap(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState,
@@ -422,7 +437,7 @@ fun MapScreen(
                         isClusterClick = false
                         selectedAddPhotoLocation = null
                         selectedClusterPhotos = null
-                        selectedClusterPoint = null
+                        selectedCluster = null
                     }
                 }
             ) {
@@ -441,7 +456,10 @@ fun MapScreen(
                                         val photos = viewModel.getPhotosForNode(node.id)
                                         if (photos.isNotEmpty()) {
                                             selectedClusterPhotos = photos
-                                            selectedClusterPoint = null
+                                            selectedCluster =
+                                                com.sunflower.pinpic.domain.model.Cluster(
+                                                    localClusterId = node.id.toInt()
+                                                )
                                             isClusterClick = true
                                         }
                                     }
@@ -454,16 +472,16 @@ fun MapScreen(
                                 viewModel = viewModel,
                                 onClick = {
                                     coroutineScope.launch {
-                                        val (photos, clusterPoint) = viewModel.getPhotosAndClusterForNode(node.id)
-                                        if (photos.isNotEmpty()) {
-                                            showGallerySheet = false
-                                            addPhotoMode = AddPhotoMode.NONE
-                                            val photo = photos.first()
-                                            selectedClusterPhotos = photos
-                                            selectedClusterPoint = clusterPoint
-                                            isClusterClick = false
-                                            
-                                        }
+//                                        val (photos, cluster) = viewModel.getPhotosAndClusterForNode(node.id)
+//                                        if (photos.isNotEmpty()) {
+//                                            showGallerySheet = false
+//                                            addPhotoMode = AddPhotoMode.NONE
+//                                            val photo = photos.first()
+//                                            selectedClusterPhotos = photos
+//                                            selectedCluster = cluster
+//                                            isClusterClick = false
+//
+//                                        }
                                     }
                                 },
                                 color = MaterialTheme.colorScheme.secondary
@@ -508,49 +526,49 @@ fun MapScreen(
                 }
             }
 
-        var dummyCount by remember { mutableStateOf("10") }
+            var dummyCount by remember { mutableStateOf("10") }
 
-        Surface(
-            modifier = Modifier
-                .systemBarsPadding()
-                .align(Alignment.TopEnd)
-                .padding(top = 24.dp, end = 16.dp)
-                .width(160.dp),
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-            shadowElevation = 4.dp
-        ) {
-            Column(modifier = Modifier.padding(8.dp)) {
-                OutlinedTextField(
-                    value = dummyCount,
-                    onValueChange = { dummyCount = it },
-                    label = { Text("Points") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = {
-                        val count = dummyCount.toIntOrNull() ?: 0
-                        if (count > 0) {
-                            viewModel.generateDummyPoints(count)
+            Surface(
+                modifier = Modifier
+                    .systemBarsPadding()
+                    .align(Alignment.TopEnd)
+                    .padding(top = 24.dp, end = 16.dp)
+                    .width(160.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                shadowElevation = 4.dp
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    OutlinedTextField(
+                        value = dummyCount,
+                        onValueChange = { dummyCount = it },
+                        label = { Text("Points") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            val count = dummyCount.toIntOrNull() ?: 0
+                            if (count > 0) {
+                                viewModel.generateDummyPoints(count)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !uiState.isGeneratingDummies
+                    ) {
+                        if (uiState.isGeneratingDummies) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Build")
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !uiState.isGeneratingDummies
-                ) {
-                    if (uiState.isGeneratingDummies) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text("Build")
                     }
                 }
             }
-        }
 
             Column(
                 modifier = Modifier
@@ -563,7 +581,7 @@ fun MapScreen(
                         onClick = {
                             showGallerySheet = false
                             selectedClusterPhotos = null
-                            selectedClusterPoint = null
+                            selectedCluster = null
                             addPhotoMode = AddPhotoMode.SELECT_LOCATION
                         },
                         modifier = Modifier.padding(end = 16.dp, bottom = 16.dp),
@@ -599,9 +617,10 @@ fun MapScreen(
 
                             if (hasPerm) {
                                 moveToCurrentLocation()
-                                
+
                                 if (addPhotoMode == AddPhotoMode.SELECT_LOCATION || addPhotoMode == AddPhotoMode.LOCATION_SELECTED) {
-                                    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                                    val locationManager =
+                                        context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
                                     val location = try {
                                         locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
                                             ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
@@ -633,7 +652,6 @@ fun MapScreen(
                 }
 
 
-
                 val bottomSpacerHeight by androidx.compose.animation.core.animateDpAsState(
                     targetValue = if (addPhotoMode == AddPhotoMode.SELECT_LOCATION || addPhotoMode == AddPhotoMode.LOCATION_SELECTED) {
                         sheetHeightDp + 52.dp
@@ -646,7 +664,6 @@ fun MapScreen(
             }
 
 
-
         } // End of Box
     } // End of BottomSheetScaffold content
 
@@ -655,12 +672,13 @@ fun MapScreen(
         if (bottomSheetScaffoldState.bottomSheetState.currentValue == SheetValue.Hidden) {
             showGallerySheet = false
             selectedClusterPhotos = null
-            selectedClusterPoint = null
+            selectedCluster = null
         }
     }
 
     if (!selectedClusterPhotos.isNullOrEmpty()) {
-        val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val sheetState =
+            androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
         androidx.compose.material3.ModalBottomSheet(
             onDismissRequest = {
                 selectedClusterPhotos = null
@@ -672,7 +690,7 @@ fun MapScreen(
         ) {
             com.sunflower.pinpic.presentation.map.components.SelectedClusterGallerySheet(
                 photos = selectedClusterPhotos!!,
-                clusterPoint = selectedClusterPoint,
+                cluster = selectedCluster,
                 showThumbnailAndLocation = !isClusterClick,
                 onClose = {
                     coroutineScope.launch {
@@ -680,21 +698,21 @@ fun MapScreen(
                     }.invokeOnCompletion {
                         if (!sheetState.isVisible) {
                             selectedClusterPhotos = null
-                            selectedClusterPoint = null
+                            selectedCluster = null
                             isClusterClick = false
                         }
                     }
                 },
-                onEditClusterPoint = { updatedPoint ->
-                    viewModel.updateClusterPoint(updatedPoint)
-                    selectedClusterPoint = updatedPoint
+                onEditCluster = { updatedCluster ->
+                    viewModel.updateCluster(updatedCluster)
+                    selectedCluster = updatedCluster
                 },
                 onDeletePhotos = { photos ->
                     viewModel.deletePhotos(photos)
                     selectedClusterPhotos = selectedClusterPhotos?.filter { it !in photos }
                     if (selectedClusterPhotos.isNullOrEmpty()) {
                         selectedClusterPhotos = null
-                        selectedClusterPoint = null
+                        selectedCluster = null
                     }
                 }
             )

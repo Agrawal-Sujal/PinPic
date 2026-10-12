@@ -13,7 +13,7 @@ object MediaStoreUtils {
 
     fun savePhotosToDevice(context: Context, photos: List<Photo>) {
         photos.forEach { photo ->
-            photo.uri?.let { uriString ->
+            photo.photoUrl.let { uriString ->
                 try {
                     val file = File(uriString)
                     if (file.exists()) {

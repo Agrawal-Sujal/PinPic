@@ -269,7 +269,7 @@ fun GalleryContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 120.dp) // Leave space for bottom nav
                 ) {
-                    items(allPhotos, key = { it.id }) { photo ->
+                    items(allPhotos, key = { it.localPhotoId }) { photo ->
                         val isSelected = selectedPhotos.contains(photo)
                         GalleryPhotoItem(
                             photo = photo,
@@ -360,11 +360,7 @@ fun GalleryPhotoItem(
                 onLongClick = onLongClick
             )
     ) {
-        val model = if (photo.uri != null) {
-            File(photo.uri)
-        } else {
-            photo.url // if url is present
-        }
+        val model = File(photo.photoUrl)
 
         AsyncImage(
             model = model,
