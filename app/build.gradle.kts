@@ -77,6 +77,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.androidx.exifinterface)
     implementation(libs.maps.compose)
     implementation(libs.play.services.maps)
     implementation(platform(libs.androidx.compose.bom))

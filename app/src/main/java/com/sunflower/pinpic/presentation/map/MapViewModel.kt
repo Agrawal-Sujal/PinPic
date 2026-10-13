@@ -111,6 +111,11 @@ class MapViewModel @Inject constructor(
     fun deletePhotos(photos: List<Photo>) {
         viewModelScope.launch {
             localPhotoRepository.deletePhotos(photos)
+            mapClusteringSystem.rebuild()
+            camera.value?.let { state ->
+                val newNodes = queryForLocked(state)
+                _uiState.update { it.copy(visibleNodes = newNodes) }
+            }
         }
     }
 

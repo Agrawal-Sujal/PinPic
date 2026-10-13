@@ -61,7 +61,7 @@ class LocalPhotoRepository @Inject constructor(
         return try {
             savePhoto(photo)
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }
@@ -72,9 +72,9 @@ class LocalPhotoRepository @Inject constructor(
 
     override suspend fun deletePhotos(photos: List<Photo>): Boolean {
         return try {
-            dao.deletePhotos(photos.map { it.toEntity() })
+            dao.deletePhotosAndCleanupClusters(photos.map { it.toEntity() })
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }
@@ -86,7 +86,7 @@ class LocalPhotoRepository @Inject constructor(
                 dao.insertClusterPhoto(ClusterPhotosEntity(photoId = photo.localPhotoId, clusterId = clusterId))
             }
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }
