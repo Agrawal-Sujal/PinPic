@@ -2,7 +2,6 @@ package com.sunflower.pinpic.data.repository
 
 import com.sunflower.pinpic.common.Result
 import com.sunflower.pinpic.data.local.dao.PhotoDao
-import com.sunflower.pinpic.data.local.entity.ClusterPhotosEntity
 import com.sunflower.pinpic.data.mapper.toDomain
 import com.sunflower.pinpic.data.mapper.toEntity
 import com.sunflower.pinpic.domain.model.Cluster
@@ -82,9 +81,8 @@ class LocalPhotoRepository @Inject constructor(
     override suspend fun addPhotosInCluster(photos: List<Photo>, cluster: Cluster): Boolean {
         return try {
             val clusterId = cluster.localClusterId
-            photos.forEach { photo ->
-                dao.insertClusterPhoto(ClusterPhotosEntity(photoId = photo.localPhotoId, clusterId = clusterId))
-            }
+            val photoIds = photos.map { it.localPhotoId }
+            dao.updateClusterIdForPhotos(photoIds, clusterId)
             true
         } catch (_: Exception) {
             false

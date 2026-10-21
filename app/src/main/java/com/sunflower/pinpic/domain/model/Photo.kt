@@ -3,6 +3,7 @@ package com.sunflower.pinpic.domain.model
 data class Photo(
     val localPhotoId: Int = 0,
     val globalPhotoId: String? = null,
+    val clusterId: Int? = null,
     val userId: String,
     val photoName: String,
     val takenAt: String,

@@ -27,6 +27,7 @@ class DataStoreManager @Inject constructor(
         val FULL_NAME = stringPreferencesKey("full_name")
         val MOBILE_NUMBER = stringPreferencesKey("mobile_number")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val DEVICE_ID = stringPreferencesKey("device_id")
     }
 
     suspend fun saveAuthInfo(
@@ -106,6 +107,16 @@ class DataStoreManager @Inject constructor(
     suspend fun saveThemeMode(mode: String) {
         context.dataStore.edit { prefs ->
             prefs[THEME_MODE] = mode
+        }
+    }
+
+    val deviceIdFlow: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[DEVICE_ID]
+    }
+
+    suspend fun saveDeviceId(deviceId: String) {
+        context.dataStore.edit { prefs ->
+            prefs[DEVICE_ID] = deviceId
         }
     }
 }

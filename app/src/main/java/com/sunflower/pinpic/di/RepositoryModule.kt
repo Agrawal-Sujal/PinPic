@@ -1,7 +1,9 @@
 package com.sunflower.pinpic.di
 
+import com.sunflower.pinpic.data.repository.DeviceRepositoryImpl
 import com.sunflower.pinpic.data.repository.LocalPhotoRepository
 import com.sunflower.pinpic.data.repository.UserRepositoryImpl
+import com.sunflower.pinpic.domain.repository.DeviceRepository
 import com.sunflower.pinpic.domain.repository.PhotoRepository
 import com.sunflower.pinpic.domain.repository.UserRepository
 import dagger.Binds
@@ -25,4 +27,10 @@ abstract class RepositoryModule {
     abstract fun bindUserRepository(
         userRepositoryImpl: UserRepositoryImpl
     ): UserRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindDeviceRepository(
+        deviceRepositoryImpl: DeviceRepositoryImpl
+    ): DeviceRepository
 }

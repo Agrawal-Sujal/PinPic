@@ -9,12 +9,14 @@ import com.sunflower.pinpic.data.remote.dto.RegisterRequest
 import com.sunflower.pinpic.data.remote.dto.SetUsernameRequest
 import com.sunflower.pinpic.data.remote.parseResponse
 import com.sunflower.pinpic.domain.repository.AuthRepository
+import com.sunflower.pinpic.domain.repository.DeviceRepository
 import kotlinx.coroutines.flow.firstOrNull
 import javax.inject.Inject
 
 class AuthRepositoryImpl @Inject constructor(
     private val api: AuthApi,
-    private val dataStoreManager: DataStoreManager
+    private val dataStoreManager: DataStoreManager,
+    private val deviceRepository: DeviceRepository
 ) : AuthRepository {
 
     override suspend fun login(email: String, password: String): Result<Unit> {
@@ -31,6 +33,11 @@ class AuthRepositoryImpl @Inject constructor(
                     pictureUrl = result.data.profileUrl,
                     userId = result.data.userId
                 )
+                // If we don't have the device ID, trigger the request to get it and store it in DataStore
+                deviceRepository.getOrRegisterDeviceId(
+                    jwtToken = result.data.jwt,
+                    userId = result.data.userId
+                )
                 Result.Success(Unit)
             }
             is Result.Error -> Result.Error(result.message)
@@ -38,6 +45,9 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun register(email: String, password: String): Result<Unit> {
+        // If we don't have the device ID, trigger the request to get it and store it in DataStore
+        deviceRepository.getOrRegisterDeviceId()
+
         return parseResponse {
             api.register(RegisterRequest(email, password))
         }
@@ -55,6 +65,11 @@ class AuthRepositoryImpl @Inject constructor(
                     username = result.data.username,
                     email = result.data.emailId,
                     pictureUrl = result.data.profileUrl,
+                    userId = result.data.userId
+                )
+                // If we don't have the device ID, trigger the request to get it and store it in DataStore
+                deviceRepository.getOrRegisterDeviceId(
+                    jwtToken = result.data.jwt,
                     userId = result.data.userId
                 )
                 Result.Success(Unit)

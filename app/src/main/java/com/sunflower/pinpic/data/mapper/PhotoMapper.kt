@@ -29,6 +29,7 @@ fun Photo.toEntity(): PhotoEntity {
     return PhotoEntity(
         localPhotoId = localPhotoId,
         globalPhotoId = globalPhotoId,
+        clusterId = clusterId,
         userId = userId,
         photoName = photoName,
         takenAt = takenAt,
@@ -44,6 +45,7 @@ fun PhotoEntity.toDomain(): Photo {
     return Photo(
         localPhotoId = localPhotoId,
         globalPhotoId = globalPhotoId,
+        clusterId = clusterId,
         userId = userId,
         photoName = photoName,
         takenAt = takenAt,
