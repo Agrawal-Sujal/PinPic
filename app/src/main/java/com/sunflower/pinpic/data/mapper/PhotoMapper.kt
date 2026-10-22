@@ -1,62 +1,79 @@
 package com.sunflower.pinpic.data.mapper
 
-import com.sunflower.pinpic.data.local.entity.ClusterPointEntity
+import com.sunflower.pinpic.data.local.entity.ClusterEntity
 import com.sunflower.pinpic.data.local.entity.PhotoEntity
-import com.sunflower.pinpic.domain.model.ClusterPoint
+import com.sunflower.pinpic.data.local.entity.Location as EntityLocation
+import com.sunflower.pinpic.domain.model.Cluster
 import com.sunflower.pinpic.domain.model.Photo
+import com.sunflower.pinpic.domain.model.Location as DomainLocation
+
+fun DomainLocation.toEntity(): EntityLocation {
+    return EntityLocation(
+        latitude = latitude,
+        longitude = longitude,
+        locationName = locationName,
+        isEdited = isEdited
+    )
+}
+
+fun EntityLocation.toDomain(): DomainLocation {
+    return DomainLocation(
+        latitude = latitude,
+        longitude = longitude,
+        locationName = locationName,
+        isEdited = isEdited
+    )
+}
 
 fun Photo.toEntity(): PhotoEntity {
     return PhotoEntity(
-        id = id,
-        lat = lat,
-        lng = lng,
-        date = date,
-        time = time,
-        locationName = locationName,
-        uri = uri,
-        url = url,
-        clusterId = clusterId
+        localPhotoId = localPhotoId,
+        globalPhotoId = globalPhotoId,
+        clusterId = clusterId,
+        userId = userId,
+        photoName = photoName,
+        takenAt = takenAt,
+        uploadedAt = uploadedAt,
+        editedAt = editedAt,
+        location = location?.toEntity(),
+        photoUri = photoUrl, // assuming photoUrl in domain maps to photoUri in entity
+        lowerResolutionPhotoUri = lowerResolutionPhotoUrl
     )
 }
 
 fun PhotoEntity.toDomain(): Photo {
     return Photo(
-        id = id,
-        lat = lat,
-        lng = lng,
-        date = date,
-        time = time,
-        locationName = locationName,
-        uri = uri,
-        url = url,
-        clusterId = clusterId
+        localPhotoId = localPhotoId,
+        globalPhotoId = globalPhotoId,
+        clusterId = clusterId,
+        userId = userId,
+        photoName = photoName,
+        takenAt = takenAt,
+        uploadedAt = uploadedAt,
+        editedAt = editedAt,
+        location = location?.toDomain(),
+        photoUrl = photoUri,
+        lowerResolutionPhotoUrl = lowerResolutionPhotoUri
     )
 }
 
-fun ClusterPoint.toEntity(): ClusterPointEntity {
-    return ClusterPointEntity(
-        id = id,
-        lat = lat,
-        lng = lng,
-        count = count,
-        thumbnailUri = thumbnailUri,
-        locationName = locationName,
-        city = city,
-        state = state,
-        country = country
+fun Cluster.toEntity(): ClusterEntity {
+    return ClusterEntity(
+        localClusterId = localClusterId,
+        globalClusterId = globalClusterId,
+        location = location?.toEntity(),
+        thumbnailId = thumbnail?.localPhotoId?.takeIf { it > 0 },
+        photoCount = photoCount
     )
 }
 
-fun ClusterPointEntity.toDomain(): ClusterPoint {
-    return ClusterPoint(
-        id = id,
-        lat = lat,
-        lng = lng,
-        count = count,
-        thumbnailUri = thumbnailUri,
-        locationName = locationName,
-        city = city,
-        state = state,
-        country = country
+fun ClusterEntity.toDomain(photos: List<Photo>? = null, thumbnail: Photo? = null): Cluster {
+    return Cluster(
+        localClusterId = localClusterId,
+        globalClusterId = globalClusterId,
+        photos = photos,
+        location = location?.toDomain(),
+        thumbnail = thumbnail,
+        photoCount = photoCount
     )
 }

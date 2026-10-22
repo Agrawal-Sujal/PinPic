@@ -24,19 +24,19 @@ fun PhotoInfoDialog(
         title = { Text("Photo Info") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val sizeString = photo.uri?.let { uri ->
+                val sizeString = photo.photoUrl.let { uri ->
                     val file = File(uri)
                     if (file.exists()) Formatter.formatShortFileSize(context, file.length()) else "N/A"
                 } ?: "N/A"
                 
                 Text("Size: $sizeString")
-                Text("Date: ${photo.date ?: "N/A"}")
-                Text("Time: ${photo.time ?: "N/A"}")
-                Text("Location: ${photo.locationName ?: "N/A"}")
-                val latStr = photo.lat?.let { "%.6f".format(it) } ?: "N/A"
-                val lngStr = photo.lng?.let { "%.6f".format(it) } ?: "N/A"
-                Text("Coordinates: $latStr, $lngStr")
-                Text("App Storage Path: ${photo.uri ?: "N/A"}")
+                Text("Date: ${photo.takenAt}")
+//                Text("Time: ${photo.time ?: "N/A"}")
+//                Text("Location: ${photo.locationName ?: "N/A"}")
+//                val latStr = photo.lat?.let { "%.6f".format(it) } ?: "N/A"
+//                val lngStr = photo.lng?.let { "%.6f".format(it) } ?: "N/A"
+//                Text("Coordinates: $latStr, $lngStr")
+//                Text("App Storage Path: ${photo.uri ?: "N/A"}")
             }
         },
         confirmButton = {

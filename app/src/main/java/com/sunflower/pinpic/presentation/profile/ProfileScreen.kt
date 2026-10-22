@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,18 +35,11 @@ import coil.compose.AsyncImage
 
 @Composable
 fun ProfileScreen(
-    viewModel: ProfileViewModel = hiltViewModel()
+    viewModel: ProfileViewModel = hiltViewModel(),
+    onNavigateToEditProfile: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var showEditDialog by remember { mutableStateOf(false) }
-
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        uri?.let {
-            viewModel.updateProfilePicture(it.toString())
-        }
-    }
 
     val backgroundColor = MaterialTheme.colorScheme.background
     val cardColor = MaterialTheme.colorScheme.surface
@@ -58,150 +52,129 @@ fun ProfileScreen(
             .padding(vertical = 16.dp, horizontal = 16.dp)
             .padding(bottom = 120.dp)
     ) {
-        // Top Bar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        // Top bar with Username and Settings
+        Box(modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = "Profile",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onBackground
+                text = uiState.username,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.align(Alignment.Center)
             )
+            IconButton(
+                onClick = onNavigateToSettings,
+                modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.secondary
+                )
+            }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Manage your account and preferences.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Main Header Card
-        Card(
+        // Profile Details
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = cardColor),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Profile Picture
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center){
-                    if (uiState.pictureUrl.isNotEmpty()) {
-                        AsyncImage(
-                            model = uiState.pictureUrl,
-                            contentDescription = "Profile Picture",
-                            modifier = Modifier
-                                .size(100.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(100.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Filled.Person,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(64.dp)
-                            )
-                        }
-                    }
-                }
-
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Username & Email
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+            // Profile Picture
+            if (uiState.pictureUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = uiState.pictureUrl,
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = uiState.username,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                    Icon(
+                        Icons.Filled.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(48.dp)
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(20.dp))
+
+            Column {
+                Text(
+                    text = uiState.fullName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row {
                     Text(
-                        text = uiState.email,
+                        text = "${uiState.followerCount} Followers",
                         style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = "${uiState.followingCount} Following",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+        }
 
-                Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-                // User Details List
-                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    ProfileDetailRow(
-                        icon = Icons.Outlined.Person,
-                        iconTint = MaterialTheme.colorScheme.primary,
-                        title = "Full Name",
-                        value = uiState.fullName
-                    )
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        thickness = 1.dp
-                    )
-                    ProfileDetailRow(
-                        icon = Icons.Outlined.Email,
-                        iconTint = MaterialTheme.colorScheme.secondary,
-                        title = "Email",
-                        value = uiState.email
-                    )
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        thickness = 1.dp
-                    )
-                    ProfileDetailRow(
-                        icon = Icons.Outlined.Phone,
-                        iconTint = MaterialTheme.colorScheme.primary,
-                        title = "Mobile Number",
-                        value = uiState.mobileNumber
-                    )
-                }
+        // Buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Button(
+                onClick = onNavigateToEditProfile,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    "Edit Profile",
+                    color = MaterialTheme.colorScheme.secondary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
-
-                // Update Profile Button
-                Button(
-                    onClick = { showEditDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp)
-                        .height(50.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary.copy(
-                            alpha = 0.1f
-                        )
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        Icons.Outlined.Edit,
-                        contentDescription = "Edit",
-                        tint = MaterialTheme.colorScheme.secondary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "Update Profile",
-                        color = MaterialTheme.colorScheme.secondary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+            Button(
+                onClick = { /* Share profile logic */ },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    "Share profile",
+                    color = MaterialTheme.colorScheme.secondary,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 
@@ -292,22 +265,6 @@ fun ProfileScreen(
             )
         }
     }
-
-    if (showEditDialog) {
-        EditProfileDialog(
-            pictureUrl = uiState.pictureUrl,
-            initialFullName = uiState.fullName,
-            initialMobile = uiState.mobileNumber,
-            onDismiss = { showEditDialog = false },
-            onSave = { name, mobile ->
-                viewModel.updateProfile(name, uiState.email, mobile, uiState.pictureUrl)
-                showEditDialog = false
-            },
-            onChangePhotoClick = {
-                photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            }
-        )
-    }
 }
 
 @Composable
@@ -383,99 +340,3 @@ fun MenuOptionRow(icon: ImageVector, iconTint: Color, title: String) {
     }
 }
 
-@Composable
-fun EditProfileDialog(
-    pictureUrl: String,
-    initialFullName: String,
-    initialMobile: String,
-    onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit,
-    onChangePhotoClick: () -> Unit
-) {
-    var fullName by remember { mutableStateOf(initialFullName) }
-    var mobile by remember { mutableStateOf(initialMobile) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Update Profile") },
-        text = {
-            Column(
-                modifier = Modifier.padding(top = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(modifier = Modifier.padding(bottom = 16.dp)) {
-                    if (pictureUrl.isNotEmpty()) {
-                        AsyncImage(
-                            model = pictureUrl,
-                            contentDescription = "Profile Picture",
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Filled.Person,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(48.dp)
-                            )
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .offset(x = (-4).dp, y = (-4).dp)
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.secondary)
-                            .clickable { onChangePhotoClick() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Filled.CameraAlt,
-                            contentDescription = "Change Photo",
-                            tint = MaterialTheme.colorScheme.onSecondary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-
-                OutlinedTextField(
-                    value = fullName,
-                    onValueChange = { fullName = it },
-                    label = { Text("Full Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = mobile,
-                    onValueChange = { mobile = it },
-                    label = { Text("Mobile Number") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(fullName, mobile) }) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}

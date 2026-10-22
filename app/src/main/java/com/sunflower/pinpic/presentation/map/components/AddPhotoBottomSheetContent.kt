@@ -22,15 +22,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.sunflower.pinpic.domain.model.LocationInfo
 import com.sunflower.pinpic.presentation.map.AddPhotoMode
 import com.sunflower.pinpic.presentation.common.shimmerEffect
 
 @Composable
 fun AddPhotoBottomSheetContent(
     addPhotoMode: AddPhotoMode,
-    locationInfo: LocationInfo?,
-    isLoadingLocation: Boolean,
     pendingUris: List<Uri>,
     onSelectPhotosClick: () -> Unit,
     onNextClick: () -> Unit,
@@ -74,54 +71,14 @@ fun AddPhotoBottomSheetContent(
                 )
             }
             AddPhotoMode.LOCATION_SELECTED -> {
-                val titleModifier = if (isLoadingLocation) Modifier.fillMaxWidth(0.6f).height(24.dp).shimmerEffect() else Modifier
-                val subtitleModifier = if (isLoadingLocation) Modifier.fillMaxWidth(0.9f).height(16.dp).shimmerEffect() else Modifier
-                val title = locationInfo?.name ?: locationInfo?.city ?: "Selected Location"
-                val subtitle = locationInfo?.formatted ?: "Unknown Location"
-                
-                Text(
-                    text = if (isLoadingLocation) "" else title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = titleModifier.padding(top = 16.dp),
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = if (isLoadingLocation) "" else subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = subtitleModifier,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(24.dp))
                 Button(
                     onClick = onSelectPhotosClick,
-                    enabled = !isLoadingLocation,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Select Photos")
                 }
             }
             AddPhotoMode.PHOTOS_SELECTED -> {
-                val title = locationInfo?.name ?: locationInfo?.city ?: "Selected Location"
-                val subtitle = locationInfo?.formatted ?: "Unknown Location"
-                
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 16.dp),
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),

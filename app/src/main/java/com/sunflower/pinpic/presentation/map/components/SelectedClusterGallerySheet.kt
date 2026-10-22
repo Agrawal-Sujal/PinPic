@@ -15,7 +15,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.sunflower.pinpic.domain.model.LocationInfo
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.presentation.common.shimmerEffect
 import com.sunflower.pinpic.presentation.gallery.GalleryContent
@@ -33,22 +32,25 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.os.Environment
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.ui.graphics.Color
+import com.sunflower.pinpic.domain.model.Cluster
 
 @Composable
 fun SelectedClusterGallerySheet(
     photos: List<Photo>,
-    locationInfo: LocationInfo?,
-    isLoadingLocation: Boolean,
     onClose: () -> Unit,
     onDeletePhotos: (List<Photo>) -> Unit,
-    clusterPoint: com.sunflower.pinpic.domain.model.ClusterPoint? = null,
-    onEditClusterPoint: ((com.sunflower.pinpic.domain.model.ClusterPoint) -> Unit)? = null,
+    cluster: Cluster? = null,
+    onEditCluster: ((Cluster) -> Unit)? = null,
     showThumbnailAndLocation: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     var showEditDialog by remember { mutableStateOf(false) }
-    val groupedByDate = remember(photos) { photos.groupBy { it.date ?: "Unknown Date" } }
-    val groupedByLocation = remember(photos) { photos.groupBy { it.locationName ?: "Unknown Location" } }
+    val groupedByDate = remember(photos) { photos.groupBy { it.takenAt ?: "Unknown Date" } }
+    val groupedByLocation = remember(photos) { photos.groupBy { it.location?.locationName ?: "Unknown Location" } }
     
     var uiState by remember(photos) {
         mutableStateOf(
@@ -64,66 +66,6 @@ fun SelectedClusterGallerySheet(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onClose) {
-                Icon(Icons.Default.Close, contentDescription = "Close")
-            }
-            if (showThumbnailAndLocation) {
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                // Thumbnail
-                val thumbnailUriToDisplay = clusterPoint?.thumbnailUri ?: photos.firstOrNull()?.let { it.uri ?: it.url }
-                
-                if (thumbnailUriToDisplay != null) {
-                    AsyncImage(
-                        model = thumbnailUriToDisplay,
-                        contentDescription = "Thumbnail",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                }
-
-                // Location Info
-                Column(modifier = Modifier.weight(1f)) {
-                    if (isLoadingLocation) {
-                        Box(modifier = Modifier.fillMaxWidth(0.6f).height(16.dp).shimmerEffect())
-                    } else {
-                        val displayName = clusterPoint?.locationName ?: clusterPoint?.city ?: locationInfo?.name ?: locationInfo?.city ?: "Unknown Location"
-                        Text(
-                            text = displayName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "${photos.size} photos",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                
-                if (clusterPoint != null && onEditClusterPoint != null) {
-                    IconButton(onClick = { showEditDialog = true }) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-        }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
-
         // Gallery Content
         Box(modifier = Modifier.weight(1f)) {
             GalleryContent(
@@ -148,18 +90,46 @@ fun SelectedClusterGallerySheet(
                 },
                 onDeletePhotos = onDeletePhotos,
                 allPhotos = photos,
-                showHeader = false
+                showHeader = false,
+                onEdit = null
             )
+            
+            if (cluster != null && onEditCluster != null) {
+                var expanded by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                ) {
+                    IconButton(
+                        onClick = { expanded = true },
+                    ) {
+                        Icon(androidx.compose.material.icons.Icons.Default.MoreVert, contentDescription = "Menu")
+                    }
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit Thumbnail") },
+                            onClick = { 
+                                showEditDialog = true
+                                expanded = false 
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
     
-    if (showEditDialog && clusterPoint != null && onEditClusterPoint != null) {
+    if (showEditDialog && cluster != null && onEditCluster != null) {
         EditClusterMetadataDialog(
-            clusterPoint = clusterPoint,
+            cluster = cluster,
             photos = photos,
             onDismiss = { showEditDialog = false },
-            onSave = { updatedPoint ->
-                onEditClusterPoint(updatedPoint)
+            onSave = { updatedCluster ->
+                onEditCluster(updatedCluster)
                 showEditDialog = false
             }
         )
@@ -168,14 +138,12 @@ fun SelectedClusterGallerySheet(
 
 @Composable
 fun EditClusterMetadataDialog(
-    clusterPoint: com.sunflower.pinpic.domain.model.ClusterPoint,
+    cluster: Cluster,
     photos: List<Photo>,
     onDismiss: () -> Unit,
-    onSave: (com.sunflower.pinpic.domain.model.ClusterPoint) -> Unit
+    onSave: (Cluster) -> Unit
 ) {
-    var locationName by remember { mutableStateOf(clusterPoint.locationName ?: "") }
-    var city by remember { mutableStateOf(clusterPoint.city ?: "") }
-    var selectedThumbnailUri by remember { mutableStateOf(clusterPoint.thumbnailUri) }
+    var selectedThumbnailUri by remember { mutableStateOf(cluster.thumbnail?.photoUrl) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -230,8 +198,8 @@ fun EditClusterMetadataDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     items(photos) { photo ->
-                        val uri = photo.uri ?: photo.url
-                        val isSelected = uri == selectedThumbnailUri || (selectedThumbnailUri == null && uri == (photos.firstOrNull()?.uri ?: photos.firstOrNull()?.url))
+                        val uri = photo.photoUrl
+                        val isSelected = uri == selectedThumbnailUri || (selectedThumbnailUri == null && uri == (photos.firstOrNull()?.photoUrl))
                         AsyncImage(
                             model = uri,
                             contentDescription = "Thumbnail option",
@@ -250,7 +218,7 @@ fun EditClusterMetadataDialog(
                                 }
                         )
                     }
-                    if (selectedThumbnailUri != null && photos.none { it.uri == selectedThumbnailUri || it.url == selectedThumbnailUri }) {
+                    if (selectedThumbnailUri != null && photos.none { it.photoUrl == selectedThumbnailUri }) {
                         item {
                             AsyncImage(
                                 model = selectedThumbnailUri,
@@ -273,35 +241,16 @@ fun EditClusterMetadataDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = locationName,
-                    onValueChange = { locationName = it },
-                    label = { Text("Location Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = city,
-                    onValueChange = { city = it },
-                    label = { Text("City") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                val updatedPoint = clusterPoint.copy(
-                    locationName = locationName.takeIf { it.isNotBlank() },
-                    city = city.takeIf { it.isNotBlank() },
-                    thumbnailUri = selectedThumbnailUri
+                // Here we would ideally want to update the Photo object that is the thumbnail.
+                // Since this is a simple dialog we just save a mock Photo with the new URI.
+                val updatedCluster = cluster.copy(
+                    thumbnail = cluster.thumbnail?.copy(photoUrl = selectedThumbnailUri ?: "")
                 )
-                onSave(updatedPoint)
+                onSave(updatedCluster)
             }) {
                 Text("Save")
             }

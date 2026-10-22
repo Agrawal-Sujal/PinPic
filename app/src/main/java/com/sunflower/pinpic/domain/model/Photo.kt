@@ -1,13 +1,15 @@
 package com.sunflower.pinpic.domain.model
 
 data class Photo(
-    val id: Long = 0,
-    val lat: Double?,
-    val lng: Double?,
-    val date: String?,
-    val time: String?,
-    val locationName: String?,
-    val uri: String?,
-    val url: String?,
-    val clusterId: Long? = null
+    val localPhotoId: Int = 0,
+    val globalPhotoId: String? = null,
+    val clusterId: Int? = null,
+    val userId: String,
+    val photoName: String,
+    val takenAt: String,
+    val uploadedAt: String? = null,
+    val editedAt: String,
+    val location: Location? = null,
+    val photoUrl: String,
+    val lowerResolutionPhotoUrl: String? = null
 )

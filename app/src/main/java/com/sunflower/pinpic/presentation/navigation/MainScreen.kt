@@ -1,5 +1,7 @@
 package com.sunflower.pinpic.presentation.navigation
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,11 +10,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,12 +22,10 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,19 +37,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.sunflower.pinpic.presentation.gallery.GalleryScreen
 import com.sunflower.pinpic.presentation.map.MapScreen
+import com.sunflower.pinpic.presentation.profile.EditProfileScreen
+import com.sunflower.pinpic.presentation.profile.ProfileScreen
+import com.sunflower.pinpic.presentation.settings.SettingsScreen
 
 sealed class MainTab(val icon: ImageVector, val filledIcon: ImageVector, val label: String) {
     data object Map : MainTab(Icons.Outlined.LocationOn, Icons.Filled.LocationOn, "Map")
@@ -60,14 +54,13 @@ sealed class MainTab(val icon: ImageVector, val filledIcon: ImageVector, val lab
     data object Profile : MainTab(Icons.Outlined.Person, Icons.Filled.Person, "Profile")
 }
 
+@RequiresApi(Build.VERSION_CODES.Q)
 @Composable
 fun MainScreen(
-    onNavigateToCamera: () -> Unit,
-    onNavigateToSettings: () -> Unit = {},
     currentTab: MutableState<MainTab?>
 ) {
-    val backStack = remember { mutableStateListOf<MainTab>(MainTab.Gallery) }
-    currentTab.value = backStack.lastOrNull() ?: MainTab.Gallery
+    val backStack = remember { mutableStateListOf<Any>(MainTab.Gallery) }
+    currentTab.value = backStack.lastOrNull { it is MainTab } as? MainTab ?: MainTab.Gallery
     Box(modifier = Modifier.fillMaxSize()) {
         NavDisplay(
             backStack = backStack,
@@ -81,26 +74,37 @@ fun MainScreen(
                             onBackClick = {
                                 backStack.removeLastOrNull()
                                 backStack.add(MainTab.Gallery)
-                            },
-                            onCameraClick = onNavigateToCamera
+                            }
                         )
 
                 }
                 entry<MainTab.Gallery> {
-                    GalleryScreen(
-                        onNavigateToSettings = onNavigateToSettings
-                    )
+                    GalleryScreen()
                 }
                 entry<MainTab.Chat> {
                     DummyScreen("Coming Soon")
                 }
                 entry<MainTab.Profile> {
-                    DummyScreen("Coming Soon")
+                    ProfileScreen(
+                        onNavigateToEditProfile = { backStack.add(Screen.EditProfile) },
+                        onNavigateToSettings = { backStack.add(Screen.Settings) }
+                    )
+                }
+                entry<Screen.Settings> {
+                    SettingsScreen(
+                        onBack = { backStack.removeLastOrNull() }
+                    )
+                }
+                entry<Screen.EditProfile> {
+                    EditProfileScreen(
+                        onBack = { backStack.removeLastOrNull() }
+                    )
                 }
             }
         )
 
-        if (currentTab.value != MainTab.Map) {
+        val currentEntry = backStack.lastOrNull()
+        if (currentEntry is MainTab && currentEntry != MainTab.Map) {
             Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                 CustomFloatingBottomNavigation(
                     currentTab = currentTab.value!!,
@@ -109,8 +113,7 @@ fun MainScreen(
                             if (tab == MainTab.Gallery) backStack.clear()
                             backStack.add(tab)
                         }
-                    },
-                    onCameraClick = onNavigateToCamera
+                    }
                 )
             }
         }
@@ -120,8 +123,7 @@ fun MainScreen(
 @Composable
 fun CustomFloatingBottomNavigation(
     currentTab: MainTab,
-    onTabSelected: (MainTab) -> Unit,
-    onCameraClick: () -> Unit
+    onTabSelected: (MainTab) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -139,12 +141,12 @@ fun CustomFloatingBottomNavigation(
                 .border(
                     width = 0.5.dp,
                     color = MaterialTheme.colorScheme.outline,
-                    shape = BottomNavCutoutShape()
+                    shape = androidx.compose.foundation.shape.CircleShape
                 )
-                .shadow(elevation = 1.dp, shape = BottomNavCutoutShape())
+                .shadow(elevation = 1.dp, shape = androidx.compose.foundation.shape.CircleShape)
                 .background(
                     color = MaterialTheme.colorScheme.surface,
-                    shape = BottomNavCutoutShape()
+                    shape = androidx.compose.foundation.shape.CircleShape
                 )
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -161,8 +163,6 @@ fun CustomFloatingBottomNavigation(
                 onClick = { onTabSelected(MainTab.Gallery) }
             )
 
-            Spacer(modifier = Modifier.width(64.dp))
-
             BottomNavItem(
                 tab = MainTab.Chat,
                 isSelected = currentTab == MainTab.Chat,
@@ -175,23 +175,6 @@ fun CustomFloatingBottomNavigation(
             )
         }
 
-        // Center FAB using your theme colors
-        FloatingActionButton(
-            onClick = onCameraClick,
-            shape = CircleShape,
-            containerColor = MaterialTheme.colorScheme.primary, // Kept your primary theme color
-            contentColor = MaterialTheme.colorScheme.onPrimary,  // Kept your on-primary theme color
-            modifier = Modifier
-                .size(50.dp)
-                .align(Alignment.TopCenter)
-                .offset(y = 8.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.CameraAlt,
-                contentDescription = "Camera",
-                modifier = Modifier.size(26.dp)
-            )
-        }
     }
 }
 
@@ -227,62 +210,7 @@ fun BottomNavItem(
     }
 }
 
-class BottomNavCutoutShape : Shape {
-    override fun createOutline(
-        size: Size,
-        layoutDirection: LayoutDirection,
-        density: Density
-    ): Outline {
-        val path = Path().apply {
-            val cornerRadius = size.height / 2
 
-            moveTo(cornerRadius, 0f)
-
-            val cutoutWidth = size.width * 0.25f
-            val center = size.width / 2
-            val leftCurveStart = center - (cutoutWidth / 2) - 15
-            val rightCurveEnd = center + (cutoutWidth / 2) + 15
-            val dipDepth = size.height * 0.53f
-
-            lineTo(leftCurveStart, 0f)
-
-            cubicTo(
-                x1 = leftCurveStart + (cutoutWidth * 0.2f), y1 = 0f,
-                x2 = center - (cutoutWidth * 0.25f), y2 = dipDepth,
-                x3 = center, y3 = dipDepth
-            )
-
-            cubicTo(
-                x1 = center + (cutoutWidth * 0.25f), y1 = dipDepth,
-                x2 = rightCurveEnd - (cutoutWidth * 0.2f), y2 = 0f,
-                x3 = rightCurveEnd, y3 = 0f
-            )
-
-            lineTo(size.width - cornerRadius, 0f)
-            arcTo(
-                rect = Rect(
-                    size.width - (cornerRadius * 2), 0f, size.width, size.height
-                ),
-                startAngleDegrees = -90f,
-                sweepAngleDegrees = 180f,
-                forceMoveTo = false
-            )
-
-            lineTo(cornerRadius, size.height)
-
-            arcTo(
-                rect = androidx.compose.ui.geometry.Rect(
-                    0f, 0f, cornerRadius * 2, size.height
-                ),
-                startAngleDegrees = 90f,
-                sweepAngleDegrees = 180f,
-                forceMoveTo = false
-            )
-            close()
-        }
-        return Outline.Generic(path)
-    }
-}
 
 @Composable
 fun DummyScreen(title: String) {

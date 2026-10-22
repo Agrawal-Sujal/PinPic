@@ -1,5 +1,6 @@
 package com.sunflower.pinpic.domain.map
 
+import com.sunflower.pinpic.domain.model.Cluster
 import kotlin.math.PI
 import kotlin.math.atan
 import kotlin.math.exp
@@ -7,15 +8,6 @@ import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.sin
 
-/** A raw input point before clustering. [payload] carries whatever your caller needs (Wikidata id, etc). */
-data class GeoPoint(
-    val id: String,
-    val lat: Double,
-    val lon: Double,
-    val count: Int = 1,
-    val payload: Any? = null,
-    val thumbnailUri:String?
-)
 
 /**
  * A node in the precomputed cluster hierarchy — either a real point (count == 1, [pointId] set)
@@ -32,7 +24,7 @@ data class ClusterNode(
     val zoom: Int,
     val pointId: String? = null,
     val childIds: LongArray? = null,
-    val thumbnailUri: String?
+    val thumbnailUrl: String?
 ) {
     val isCluster: Boolean get() = pointId == null
 
@@ -101,16 +93,17 @@ class GeoClusterIndex private constructor(
      *
      * Safe to call repeatedly as new points stream in (e.g. from dummy/live data on a timer).
      */
-    fun addPoint(point: GeoPoint) {
+    fun addPoint(point: Cluster) {
         val id = nextIdCounter++
+        val count = if (point.photoCount > 0) point.photoCount else (point.photos?.size?.takeIf { it > 0 } ?: 1)
         val leaf = ClusterNode(
             id = id,
-            lat = point.lat,
-            lon = point.lon,
-            count = 1,
+            lat = point.location?.latitude!!,
+            lon = point.location.longitude,
+            count = count,
             zoom = maxZoom + 1,
-            pointId = point.id,
-            thumbnailUri = point.thumbnailUri
+            pointId = point.localClusterId.toString(),
+            thumbnailUrl = point.thumbnail?.photoUrl
         )
         nodesById[id] = leaf
 
@@ -120,7 +113,7 @@ class GeoClusterIndex private constructor(
             layer.nodes.add(leaf)
             // Layers are built from (lon, lat) arrays — see build() below — so insert() must be
             // called with the same axis order the tree was built with.
-            layer.tree.insert(newIndex, point.lon, point.lat)
+            layer.tree.insert(newIndex, point.location.longitude, point.location.latitude)
         }
     }
 
@@ -132,7 +125,7 @@ class GeoClusterIndex private constructor(
          * @param extent assumed tile size in pixels (matches standard 512px vector tiles).
          */
         fun build(
-            points: List<GeoPoint>,
+            points: List<Cluster>,
             minZoom: Int = 0,
             maxZoom: Int = 16,
             radiusPixels: Double = 10.0,
@@ -150,19 +143,20 @@ class GeoClusterIndex private constructor(
                 val pointId: String?,
                 val childIds: LongArray?,
                 val zoom: Int,
-                val thumbnailUri:String?
+                val thumbnailUrl:String?
             )
 
             var current: List<Working> = points.map { p ->
+                val count = if (p.photoCount > 0) p.photoCount else (p.photos?.size?.takeIf { it > 0 } ?: 1)
                 Working(
                     id = nextId(),
-                    x = lngX(p.lon),
-                    y = latY(p.lat),
-                    count = p.count,
-                    pointId = p.id,
+                    x = lngX(p.location?.longitude!!),
+                    y = latY(p.location.latitude),
+                    count = count,
+                    pointId = p.localClusterId.toString(),
                     childIds = null,
                     zoom = maxZoom + 1, // leaves are always "visible" as themselves at max zoom
-                    thumbnailUri = p.thumbnailUri
+                    thumbnailUrl = p.thumbnail?.photoUrl
                 )
             }
 
@@ -171,7 +165,7 @@ class GeoClusterIndex private constructor(
 
             // Seed nodesById with leaves so getChildren/getLeaves can resolve them regardless of layer.
             current.forEach { w ->
-                nodesById[w.id] = ClusterNode(w.id, yLat(w.y), xLng(w.x), w.count, w.zoom, w.pointId, w.childIds,w.thumbnailUri)
+                nodesById[w.id] = ClusterNode(w.id, yLat(w.y), xLng(w.x), w.count, w.zoom, w.pointId, w.childIds,w.thumbnailUrl)
             }
 
             for (z in maxZoom downTo minZoom) {
@@ -210,12 +204,12 @@ class GeoClusterIndex private constructor(
                             pointId = null,
                             childIds = neighbors.map { current[it].id }.toLongArray(),
                             zoom = z,
-                            thumbnailUri = null
+                            thumbnailUrl = null
                         )
                         next.add(merged)
                         nodesById[merged.id] = ClusterNode(
                             merged.id, yLat(cy), xLng(cx), merged.count, merged.zoom,
-                            null, merged.childIds,merged.thumbnailUri
+                            null, merged.childIds,merged.thumbnailUrl
                         )
                     }
                 }
@@ -223,7 +217,7 @@ class GeoClusterIndex private constructor(
                 // Store this zoom's layer using lat/lon coords so runtime queries take a plain
                 // geographic bbox with no projection step on the hot path.
                 val layerNodes = next.map { w ->
-                    nodesById[w.id] ?: ClusterNode(w.id, yLat(w.y), xLng(w.x), w.count, w.zoom, w.pointId, w.childIds,w.thumbnailUri)
+                    nodesById[w.id] ?: ClusterNode(w.id, yLat(w.y), xLng(w.x), w.count, w.zoom, w.pointId, w.childIds,w.thumbnailUrl)
                 }.toMutableList()
                 val lonArr = DoubleArray(layerNodes.size) { layerNodes[it].lon }
                 val latArr = DoubleArray(layerNodes.size) { layerNodes[it].lat }

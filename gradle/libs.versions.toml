@@ -3,6 +3,7 @@
 agp = "9.3.0"
 
 # Kotlin
+exifinterface = "1.4.2"
 kotlin = "2.2.21"
 ksp = "2.3.9"
 
@@ -67,6 +68,7 @@ coil = "2.7.0"
 [libraries]
 androidx-compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "materialIconsExtended" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "exifinterface" }
 androidx-hilt-lifecycle-viewmodel-compose = { module = "androidx.hilt:hilt-lifecycle-viewmodel-compose", version.ref = "hiltLifecycleViewmodelCompose" }
 androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 firebase-auth = { module = "com.google.firebase:firebase-auth" }

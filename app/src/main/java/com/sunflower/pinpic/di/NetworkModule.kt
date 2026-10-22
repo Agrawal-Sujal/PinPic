@@ -1,7 +1,9 @@
 package com.sunflower.pinpic.di
 
 import com.sunflower.pinpic.data.remote.api.AuthApi
-import com.sunflower.pinpic.data.remote.api.GeoapifyApi
+import com.sunflower.pinpic.data.remote.api.DeviceApi
+import com.sunflower.pinpic.data.remote.api.S3Api
+import com.sunflower.pinpic.data.remote.api.UserApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -20,8 +22,8 @@ import javax.inject.Singleton
 object NetworkModule {
 
     // Placeholder BASE_URL
-    private const val BASE_URL = "http://10.57.203.176:8080/api/"
-    private const val GEOAPIFY_BASE_URL = "https://api.geoapify.com/"
+    private const val BASE_URL = "http://10.0.2.2:8080/api/"
+//    private const val BASE_URL = "http://10.17.16.221:8080/api/"
 
     @Provides
     @Singleton
@@ -61,19 +63,19 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    @Named("GeoapifyRetrofit")
-    fun provideGeoapifyRetrofit(okHttpClient: OkHttpClient, json: Json): Retrofit {
-        val contentType = "application/json".toMediaType()
-        return Retrofit.Builder()
-            .baseUrl(GEOAPIFY_BASE_URL)
-            .client(okHttpClient)
-            .addConverterFactory(json.asConverterFactory(contentType))
-            .build()
+    fun provideUserApi(@Named("AuthRetrofit") retrofit: Retrofit): UserApi {
+        return retrofit.create(UserApi::class.java)
     }
 
     @Provides
     @Singleton
-    fun provideGeoapifyApi(@Named("GeoapifyRetrofit") retrofit: Retrofit): GeoapifyApi {
-        return retrofit.create(GeoapifyApi::class.java)
+    fun provideS3Api(@Named("AuthRetrofit") retrofit: Retrofit): S3Api {
+        return retrofit.create(S3Api::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideDeviceApi(@Named("AuthRetrofit") retrofit: Retrofit): DeviceApi {
+        return retrofit.create(DeviceApi::class.java)
     }
 }
