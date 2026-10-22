@@ -13,6 +13,7 @@ interface PhotoRepository {
     suspend fun savePhotos(photos: List<Photo>): List<Int>
     suspend fun updatePhoto(photo: Photo): Boolean
     suspend fun saveCluster(cluster: Cluster): Int
+    suspend fun updateCluster(cluster: Cluster): Boolean
     suspend fun deletePhotos(photos: List<Photo>): Boolean
     suspend fun addPhotosInCluster(photos:List<Photo>,cluster:Cluster): Boolean
 }

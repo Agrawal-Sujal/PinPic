@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.sunflower.pinpic.data.local.AppDatabase
 import com.sunflower.pinpic.data.local.dao.PhotoDao
+import com.sunflower.pinpic.data.local.dao.SyncOperationDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -32,5 +33,11 @@ object DatabaseModule {
     @Singleton
     fun providePhotoDao(database: AppDatabase): PhotoDao {
         return database.photoDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideSyncOperationDao(database: AppDatabase): SyncOperationDao {
+        return database.syncOperationDao()
     }
 }

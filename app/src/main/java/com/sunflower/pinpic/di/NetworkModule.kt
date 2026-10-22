@@ -2,7 +2,9 @@ package com.sunflower.pinpic.di
 
 import com.sunflower.pinpic.data.remote.api.AuthApi
 import com.sunflower.pinpic.data.remote.api.DeviceApi
+import com.sunflower.pinpic.data.remote.api.PhotoApi
 import com.sunflower.pinpic.data.remote.api.S3Api
+import com.sunflower.pinpic.data.remote.api.SyncApi
 import com.sunflower.pinpic.data.remote.api.UserApi
 import dagger.Module
 import dagger.Provides
@@ -22,8 +24,8 @@ import javax.inject.Singleton
 object NetworkModule {
 
     // Placeholder BASE_URL
-    private const val BASE_URL = "http://10.0.2.2:8080/api/"
-//    private const val BASE_URL = "http://10.17.16.221:8080/api/"
+//    private const val BASE_URL = "http://10.0.2.2:8080/api/"
+    private const val BASE_URL = "http://10.128.38.176:8080/api/"
 
     @Provides
     @Singleton
@@ -77,5 +79,17 @@ object NetworkModule {
     @Singleton
     fun provideDeviceApi(@Named("AuthRetrofit") retrofit: Retrofit): DeviceApi {
         return retrofit.create(DeviceApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun providePhotoApi(@Named("AuthRetrofit") retrofit: Retrofit): PhotoApi {
+        return retrofit.create(PhotoApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSyncApi(@Named("AuthRetrofit") retrofit: Retrofit): SyncApi {
+        return retrofit.create(SyncApi::class.java)
     }
 }

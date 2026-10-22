@@ -8,7 +8,7 @@ import androidx.room.PrimaryKey
 data class ClusterEntity(
     @PrimaryKey(autoGenerate = true)
     val localClusterId: Int = 0,
-    val globalClusterId: Int? = null,
+    val globalClusterId: String? = null,
     @Embedded
     val location: Location? = null,
     val thumbnailId: Int? = null,
