@@ -8,6 +8,7 @@ import com.sunflower.pinpic.domain.map.MapClusteringSystem
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.domain.repository.PhotoRepository
 import com.sunflower.pinpic.domain.usecase.ImportPhotosUseCase
+import com.sunflower.pinpic.worker.SyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,7 @@ data class GalleryUiState(
     val photosGroupedByDate: Map<String, List<Photo>> = emptyMap(),
     val photosGroupedByLocation: Map<String, List<Photo>> = emptyMap(),
     val isLoading: Boolean = false,
+    val isSyncing: Boolean = false,
     val errorMessage: String? = null,
     val expandedDates: Set<String> = emptySet(),
     val expandedLocations: Set<String> = emptySet(),
@@ -35,7 +37,8 @@ data class GalleryUiState(
 class GalleryViewModel @Inject constructor(
     private val photoRepository: PhotoRepository,
     private val importPhotosUseCase: ImportPhotosUseCase,
-    private val mapClusteringSystem: MapClusteringSystem
+    private val mapClusteringSystem: MapClusteringSystem,
+    private val syncScheduler: SyncScheduler
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(GalleryUiState())
@@ -43,6 +46,19 @@ class GalleryViewModel @Inject constructor(
 
     init {
         loadPhotos()
+        observeSyncStatus()
+    }
+
+    private fun observeSyncStatus() {
+        viewModelScope.launch {
+            syncScheduler.isSyncingFlow.collect { syncing ->
+                _uiState.update { it.copy(isSyncing = syncing) }
+            }
+        }
+    }
+
+    fun syncPhotos() {
+        syncScheduler.scheduleSync()
     }
 
     fun loadPhotos() {
