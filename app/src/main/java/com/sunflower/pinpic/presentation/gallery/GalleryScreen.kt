@@ -38,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
@@ -124,6 +125,7 @@ fun GalleryScreen(
             onToggleLocation = { viewModel.toggleLocationExpansion(it) },
             onDeletePhotos = { viewModel.deletePhotos(it) },
             onImportPhotos = { viewModel.importPhotos(it) },
+            onSync = { viewModel.syncPhotos() },
             modifier = modifier,
             allPhotos = allPhotos,
             showFloatingImportButton = true
@@ -148,7 +150,8 @@ fun GalleryContent(
     showHeader: Boolean = true,
     onEdit: (() -> Unit)? = null,
     showFloatingImportButton: Boolean = showHeader,
-    onImportPhotos: ((List<Uri>) -> Unit)? = null
+    onImportPhotos: ((List<Uri>) -> Unit)? = null,
+    onSync: (() -> Unit)? = null
 ) {
     var selectedPhotoIndex by remember { mutableStateOf<Int?>(null) }
     val selectedPhotos = remember { mutableStateListOf<Photo>() }
@@ -225,7 +228,7 @@ fun GalleryContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -234,13 +237,35 @@ fun GalleryContent(
                         style = MaterialTheme.typography.headlineLarge,
                         color = MaterialTheme.colorScheme.onBackground
                     )
-                    IconButton(onClick = { launchPhotoPicker() }) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = "Add Photo",
-                            tint = MaterialTheme.colorScheme.secondary
-                        )
+                    IconButton(
+                        onClick = { onSync?.invoke() },
+                        enabled = !uiState.isSyncing
+                    ) {
+                        if (uiState.isSyncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.Sync,
+                                contentDescription = "Sync",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
+                }
+
+                if (uiState.isSyncing) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(2.5.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    )
                 }
             }
 
@@ -297,13 +322,13 @@ fun GalleryContent(
             }
         }
 
-        // Floating button at bottom left
+        // Floating button at bottom right
         if (showFloatingImportButton && !inSelectionMode) {
             FloatingActionButton(
                 onClick = { launchPhotoPicker() },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(start = 24.dp, bottom = 104.dp),
+                    .padding(end = 24.dp, bottom = 104.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 shape = CircleShape,
@@ -556,212 +581,212 @@ fun SelectionActionBar(
     }
 }
 
-private fun logAllImageMetadata(context: android.content.Context, uri: Uri) {
-    val tag = "GalleryScreen"
-    Log.d(tag, "==================== IMAGE METADATA START ====================")
-    Log.d(tag, "Image selected: $uri")
-
-    // 1. ContentResolver / MediaStore / OpenableColumns metadata
-    var displayName: String? = null
-    var fileSize: Long? = null
-    val mimeType = context.contentResolver.getType(uri)
-
-    try {
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (nameIndex != -1 && !cursor.isNull(nameIndex)) {
-                    displayName = cursor.getString(nameIndex)
-                }
-                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                if (sizeIndex != -1 && !cursor.isNull(sizeIndex)) {
-                    fileSize = cursor.getLong(sizeIndex)
-                }
-
-                Log.d(tag, "--- ContentResolver Columns ---")
-                for (i in 0 until cursor.columnCount) {
-                    val colName = cursor.getColumnName(i)
-                    val colVal = try {
-                        cursor.getString(i)
-                    } catch (_: Exception) {
-                        null
-                    }
-                    if (colVal != null) {
-                        Log.d(tag, "Column [$colName] = $colVal")
-                    }
-                }
-            }
-        }
-    } catch (e: Exception) {
-        Log.e(tag, "Error querying ContentResolver: ${e.message}", e)
-    }
-
-    Log.d(tag, "--- Basic File Details ---")
-    Log.d(tag, "File Name: ${displayName ?: "Unknown"}")
-    Log.d(
-        tag,
-        "File Size: ${
-            fileSize?.let {
-                Formatter.formatShortFileSize(
-                    context,
-                    it
-                )
-            } ?: "Unknown"
-        } (${fileSize ?: 0} bytes)")
-    Log.d(tag, "MIME Type: ${mimeType ?: "Unknown"}")
-
-    // 2. Decode Image Dimensions using BitmapFactory
-    var decodedWidth = -1
-    var decodedHeight = -1
-    try {
-        context.contentResolver.openInputStream(uri)?.use { stream ->
-            val options = BitmapFactory.Options().apply {
-                inJustDecodeBounds = true
-            }
-            BitmapFactory.decodeStream(stream, null, options)
-            decodedWidth = options.outWidth
-            decodedHeight = options.outHeight
-        }
-    } catch (e: Exception) {
-        Log.e(tag, "Error decoding image bounds: ${e.message}", e)
-    }
-
-    // 3. EXIF Metadata using androidx.exifinterface
-    try {
-        val exif: ExifInterface? = try {
-            context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
-                ExifInterface(pfd.fileDescriptor)
-            }
-        } catch (_: Exception) {
-            null
-        } ?: try {
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                ExifInterface(stream)
-            }
-        } catch (_: Exception) {
-            null
-        }
-
-        if (exif != null) {
-            // Location
-            val latLong = exif.latLong
-            val hasLocation = latLong != null
-            Log.d(tag, "--- Location Metadata ---")
-            Log.d(tag, "Has Location: $hasLocation")
-            if (latLong != null) {
-                Log.d(tag, "Location: Lat ${latLong[0]}, Lng ${latLong[1]}")
-                Log.d(tag, "Latitude: ${latLong[0]}")
-                Log.d(tag, "Longitude: ${latLong[1]}")
-            }
-            val altitude = exif.getAltitude(Double.NaN)
-            if (!altitude.isNaN()) {
-                Log.d(tag, "Altitude: $altitude meters")
-            }
-
-            // Date / Time
-            val date = exif.getAttribute(ExifInterface.TAG_DATETIME)
-            val dateOriginal = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
-            val dateDigitized = exif.getAttribute(ExifInterface.TAG_DATETIME_DIGITIZED)
-            val offsetTime = exif.getAttribute(ExifInterface.TAG_OFFSET_TIME)
-                ?: exif.getAttribute(ExifInterface.TAG_OFFSET_TIME_ORIGINAL)
-            Log.d(tag, "--- Date & Time Metadata ---")
-            Log.d(tag, "Date: ${date ?: dateOriginal ?: "N/A"}")
-            if (dateOriginal != null) Log.d(tag, "Date (Original): $dateOriginal")
-            if (dateDigitized != null) Log.d(tag, "Date (Digitized): $dateDigitized")
-            if (offsetTime != null) Log.d(tag, "Timezone Offset: $offsetTime")
-
-            // Make / Model / Lens / Software
-            val make = exif.getAttribute(ExifInterface.TAG_MAKE)
-            val model = exif.getAttribute(ExifInterface.TAG_MODEL)
-            val lensMake = exif.getAttribute(ExifInterface.TAG_LENS_MAKE)
-            val lensModel = exif.getAttribute(ExifInterface.TAG_LENS_MODEL)
-            val software = exif.getAttribute(ExifInterface.TAG_SOFTWARE)
-            Log.d(tag, "--- Device & Camera ---")
-            Log.d(tag, "Make: ${make ?: "N/A"}, Model: ${model ?: "N/A"}")
-            if (lensMake != null || lensModel != null) {
-                Log.d(tag, "Lens: ${listOfNotNull(lensMake, lensModel).joinToString(" ")}")
-            }
-            if (software != null) Log.d(tag, "Software: $software")
-
-            // Dimensions / Resolution
-            val exifWidth = exif.getAttribute(ExifInterface.TAG_IMAGE_WIDTH)
-                ?: exif.getAttribute(ExifInterface.TAG_PIXEL_X_DIMENSION)
-                ?: if (decodedWidth > 0) decodedWidth.toString() else null
-            val exifLength = exif.getAttribute(ExifInterface.TAG_IMAGE_LENGTH)
-                ?: exif.getAttribute(ExifInterface.TAG_PIXEL_Y_DIMENSION)
-                ?: if (decodedHeight > 0) decodedHeight.toString() else null
-            Log.d(tag, "--- Dimensions & Orientation ---")
-            Log.d(tag, "Size: ${exifWidth ?: "N/A"} x ${exifLength ?: "N/A"}")
-            if (decodedWidth > 0 && decodedHeight > 0) {
-                Log.d(tag, "Decoded Dimensions: ${decodedWidth}x${decodedHeight}")
-            }
-
-            // Orientation
-            val orientation = exif.getAttributeInt(
-                ExifInterface.TAG_ORIENTATION,
-                ExifInterface.ORIENTATION_UNDEFINED
-            )
-            val orientationDesc = when (orientation) {
-                ExifInterface.ORIENTATION_NORMAL -> "Normal (0°)"
-                ExifInterface.ORIENTATION_ROTATE_90 -> "Rotate 90° CW"
-                ExifInterface.ORIENTATION_ROTATE_180 -> "Rotate 180°"
-                ExifInterface.ORIENTATION_ROTATE_270 -> "Rotate 270° CW"
-                ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> "Flip Horizontal"
-                ExifInterface.ORIENTATION_FLIP_VERTICAL -> "Flip Vertical"
-                ExifInterface.ORIENTATION_TRANSPOSE -> "Transpose"
-                ExifInterface.ORIENTATION_TRANSVERSE -> "Transverse"
-                else -> "Undefined ($orientation)"
-            }
-            Log.d(tag, "Orientation: $orientationDesc")
-
-            // Camera Settings
-            val exposureTime = exif.getAttribute(ExifInterface.TAG_EXPOSURE_TIME)
-            val fNumber = exif.getAttribute(ExifInterface.TAG_F_NUMBER)
-            val iso = exif.getAttribute(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY)
-            val focalLength = exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH)
-            val focalLength35mm = exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM)
-            val flash = exif.getAttribute(ExifInterface.TAG_FLASH)
-            val whiteBalance = exif.getAttribute(ExifInterface.TAG_WHITE_BALANCE)
-
-            Log.d(tag, "--- Camera Settings ---")
-            if (exposureTime != null) Log.d(tag, "Exposure Time: $exposureTime s")
-            if (fNumber != null) Log.d(tag, "F-Number: f/$fNumber")
-            if (iso != null) Log.d(tag, "ISO: $iso")
-            if (focalLength != null) Log.d(tag, "Focal Length: $focalLength mm")
-            if (focalLength35mm != null) Log.d(tag, "Focal Length (35mm): $focalLength35mm mm")
-            if (flash != null) Log.d(tag, "Flash: $flash")
-            if (whiteBalance != null) Log.d(tag, "White Balance: $whiteBalance")
-
-            // All EXIF Tags present in the file
-            Log.d(tag, "--- All Present EXIF Attributes ---")
-            val allExifTags = mutableMapOf<String, String>()
-            val fields = ExifInterface::class.java.fields
-            for (field in fields) {
-                if (java.lang.reflect.Modifier.isStatic(field.modifiers) &&
-                    field.name.startsWith("TAG_") &&
-                    field.type == String::class.java
-                ) {
-                    try {
-                        val tagConstValue = field.get(null) as? String ?: continue
-                        val tagVal = exif.getAttribute(tagConstValue)
-                        if (!tagVal.isNullOrBlank()) {
-                            allExifTags[field.name] = tagVal
-                        }
-                    } catch (_: Exception) {
-                    }
-                }
-            }
-
-            allExifTags.toSortedMap().forEach { (tagName, tagValue) ->
-                Log.d(tag, "$tagName: $tagValue")
-            }
-            Log.d(tag, "Total EXIF tags found: ${allExifTags.size}")
-        } else {
-            Log.w(tag, "Could not open ExifInterface for URI: $uri")
-        }
-    } catch (e: Exception) {
-        Log.e(tag, "Error reading EXIF metadata", e)
-    }
-
-    Log.d(tag, "==================== IMAGE METADATA END ====================")
-}
+//private fun logAllImageMetadata(context: android.content.Context, uri: Uri) {
+//    val tag = "GalleryScreen"
+//    Log.d(tag, "==================== IMAGE METADATA START ====================")
+//    Log.d(tag, "Image selected: $uri")
+//
+//    // 1. ContentResolver / MediaStore / OpenableColumns metadata
+//    var displayName: String? = null
+//    var fileSize: Long? = null
+//    val mimeType = context.contentResolver.getType(uri)
+//
+//    try {
+//        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+//            if (cursor.moveToFirst()) {
+//                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+//                if (nameIndex != -1 && !cursor.isNull(nameIndex)) {
+//                    displayName = cursor.getString(nameIndex)
+//                }
+//                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+//                if (sizeIndex != -1 && !cursor.isNull(sizeIndex)) {
+//                    fileSize = cursor.getLong(sizeIndex)
+//                }
+//
+//                Log.d(tag, "--- ContentResolver Columns ---")
+//                for (i in 0 until cursor.columnCount) {
+//                    val colName = cursor.getColumnName(i)
+//                    val colVal = try {
+//                        cursor.getString(i)
+//                    } catch (_: Exception) {
+//                        null
+//                    }
+//                    if (colVal != null) {
+//                        Log.d(tag, "Column [$colName] = $colVal")
+//                    }
+//                }
+//            }
+//        }
+//    } catch (e: Exception) {
+//        Log.e(tag, "Error querying ContentResolver: ${e.message}", e)
+//    }
+//
+//    Log.d(tag, "--- Basic File Details ---")
+//    Log.d(tag, "File Name: ${displayName ?: "Unknown"}")
+//    Log.d(
+//        tag,
+//        "File Size: ${
+//            fileSize?.let {
+//                Formatter.formatShortFileSize(
+//                    context,
+//                    it
+//                )
+//            } ?: "Unknown"
+//        } (${fileSize ?: 0} bytes)")
+//    Log.d(tag, "MIME Type: ${mimeType ?: "Unknown"}")
+//
+//    // 2. Decode Image Dimensions using BitmapFactory
+//    var decodedWidth = -1
+//    var decodedHeight = -1
+//    try {
+//        context.contentResolver.openInputStream(uri)?.use { stream ->
+//            val options = BitmapFactory.Options().apply {
+//                inJustDecodeBounds = true
+//            }
+//            BitmapFactory.decodeStream(stream, null, options)
+//            decodedWidth = options.outWidth
+//            decodedHeight = options.outHeight
+//        }
+//    } catch (e: Exception) {
+//        Log.e(tag, "Error decoding image bounds: ${e.message}", e)
+//    }
+//
+//    // 3. EXIF Metadata using androidx.exifinterface
+//    try {
+//        val exif: ExifInterface? = try {
+//            context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+//                ExifInterface(pfd.fileDescriptor)
+//            }
+//        } catch (_: Exception) {
+//            null
+//        } ?: try {
+//            context.contentResolver.openInputStream(uri)?.use { stream ->
+//                ExifInterface(stream)
+//            }
+//        } catch (_: Exception) {
+//            null
+//        }
+//
+//        if (exif != null) {
+//            // Location
+//            val latLong = exif.latLong
+//            val hasLocation = latLong != null
+//            Log.d(tag, "--- Location Metadata ---")
+//            Log.d(tag, "Has Location: $hasLocation")
+//            if (latLong != null) {
+//                Log.d(tag, "Location: Lat ${latLong[0]}, Lng ${latLong[1]}")
+//                Log.d(tag, "Latitude: ${latLong[0]}")
+//                Log.d(tag, "Longitude: ${latLong[1]}")
+//            }
+//            val altitude = exif.getAltitude(Double.NaN)
+//            if (!altitude.isNaN()) {
+//                Log.d(tag, "Altitude: $altitude meters")
+//            }
+//
+//            // Date / Time
+//            val date = exif.getAttribute(ExifInterface.TAG_DATETIME)
+//            val dateOriginal = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
+//            val dateDigitized = exif.getAttribute(ExifInterface.TAG_DATETIME_DIGITIZED)
+//            val offsetTime = exif.getAttribute(ExifInterface.TAG_OFFSET_TIME)
+//                ?: exif.getAttribute(ExifInterface.TAG_OFFSET_TIME_ORIGINAL)
+//            Log.d(tag, "--- Date & Time Metadata ---")
+//            Log.d(tag, "Date: ${date ?: dateOriginal ?: "N/A"}")
+//            if (dateOriginal != null) Log.d(tag, "Date (Original): $dateOriginal")
+//            if (dateDigitized != null) Log.d(tag, "Date (Digitized): $dateDigitized")
+//            if (offsetTime != null) Log.d(tag, "Timezone Offset: $offsetTime")
+//
+//            // Make / Model / Lens / Software
+//            val make = exif.getAttribute(ExifInterface.TAG_MAKE)
+//            val model = exif.getAttribute(ExifInterface.TAG_MODEL)
+//            val lensMake = exif.getAttribute(ExifInterface.TAG_LENS_MAKE)
+//            val lensModel = exif.getAttribute(ExifInterface.TAG_LENS_MODEL)
+//            val software = exif.getAttribute(ExifInterface.TAG_SOFTWARE)
+//            Log.d(tag, "--- Device & Camera ---")
+//            Log.d(tag, "Make: ${make ?: "N/A"}, Model: ${model ?: "N/A"}")
+//            if (lensMake != null || lensModel != null) {
+//                Log.d(tag, "Lens: ${listOfNotNull(lensMake, lensModel).joinToString(" ")}")
+//            }
+//            if (software != null) Log.d(tag, "Software: $software")
+//
+//            // Dimensions / Resolution
+//            val exifWidth = exif.getAttribute(ExifInterface.TAG_IMAGE_WIDTH)
+//                ?: exif.getAttribute(ExifInterface.TAG_PIXEL_X_DIMENSION)
+//                ?: if (decodedWidth > 0) decodedWidth.toString() else null
+//            val exifLength = exif.getAttribute(ExifInterface.TAG_IMAGE_LENGTH)
+//                ?: exif.getAttribute(ExifInterface.TAG_PIXEL_Y_DIMENSION)
+//                ?: if (decodedHeight > 0) decodedHeight.toString() else null
+//            Log.d(tag, "--- Dimensions & Orientation ---")
+//            Log.d(tag, "Size: ${exifWidth ?: "N/A"} x ${exifLength ?: "N/A"}")
+//            if (decodedWidth > 0 && decodedHeight > 0) {
+//                Log.d(tag, "Decoded Dimensions: ${decodedWidth}x${decodedHeight}")
+//            }
+//
+//            // Orientation
+//            val orientation = exif.getAttributeInt(
+//                ExifInterface.TAG_ORIENTATION,
+//                ExifInterface.ORIENTATION_UNDEFINED
+//            )
+//            val orientationDesc = when (orientation) {
+//                ExifInterface.ORIENTATION_NORMAL -> "Normal (0°)"
+//                ExifInterface.ORIENTATION_ROTATE_90 -> "Rotate 90° CW"
+//                ExifInterface.ORIENTATION_ROTATE_180 -> "Rotate 180°"
+//                ExifInterface.ORIENTATION_ROTATE_270 -> "Rotate 270° CW"
+//                ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> "Flip Horizontal"
+//                ExifInterface.ORIENTATION_FLIP_VERTICAL -> "Flip Vertical"
+//                ExifInterface.ORIENTATION_TRANSPOSE -> "Transpose"
+//                ExifInterface.ORIENTATION_TRANSVERSE -> "Transverse"
+//                else -> "Undefined ($orientation)"
+//            }
+//            Log.d(tag, "Orientation: $orientationDesc")
+//
+//            // Camera Settings
+//            val exposureTime = exif.getAttribute(ExifInterface.TAG_EXPOSURE_TIME)
+//            val fNumber = exif.getAttribute(ExifInterface.TAG_F_NUMBER)
+//            val iso = exif.getAttribute(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY)
+//            val focalLength = exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH)
+//            val focalLength35mm = exif.getAttribute(ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM)
+//            val flash = exif.getAttribute(ExifInterface.TAG_FLASH)
+//            val whiteBalance = exif.getAttribute(ExifInterface.TAG_WHITE_BALANCE)
+//
+//            Log.d(tag, "--- Camera Settings ---")
+//            if (exposureTime != null) Log.d(tag, "Exposure Time: $exposureTime s")
+//            if (fNumber != null) Log.d(tag, "F-Number: f/$fNumber")
+//            if (iso != null) Log.d(tag, "ISO: $iso")
+//            if (focalLength != null) Log.d(tag, "Focal Length: $focalLength mm")
+//            if (focalLength35mm != null) Log.d(tag, "Focal Length (35mm): $focalLength35mm mm")
+//            if (flash != null) Log.d(tag, "Flash: $flash")
+//            if (whiteBalance != null) Log.d(tag, "White Balance: $whiteBalance")
+//
+//            // All EXIF Tags present in the file
+//            Log.d(tag, "--- All Present EXIF Attributes ---")
+//            val allExifTags = mutableMapOf<String, String>()
+//            val fields = ExifInterface::class.java.fields
+//            for (field in fields) {
+//                if (java.lang.reflect.Modifier.isStatic(field.modifiers) &&
+//                    field.name.startsWith("TAG_") &&
+//                    field.type == String::class.java
+//                ) {
+//                    try {
+//                        val tagConstValue = field.get(null) as? String ?: continue
+//                        val tagVal = exif.getAttribute(tagConstValue)
+//                        if (!tagVal.isNullOrBlank()) {
+//                            allExifTags[field.name] = tagVal
+//                        }
+//                    } catch (_: Exception) {
+//                    }
+//                }
+//            }
+//
+//            allExifTags.toSortedMap().forEach { (tagName, tagValue) ->
+//                Log.d(tag, "$tagName: $tagValue")
+//            }
+//            Log.d(tag, "Total EXIF tags found: ${allExifTags.size}")
+//        } else {
+//            Log.w(tag, "Could not open ExifInterface for URI: $uri")
+//        }
+//    } catch (e: Exception) {
+//        Log.e(tag, "Error reading EXIF metadata", e)
+//    }
+//
+//    Log.d(tag, "==================== IMAGE METADATA END ====================")
+//}

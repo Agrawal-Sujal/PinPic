@@ -9,6 +9,8 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,6 +18,18 @@ import javax.inject.Singleton
 class SyncScheduler @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
+    private val workManager by lazy { WorkManager.getInstance(context) }
+
+    /**
+     * Observable flow indicating whether the sync worker is actively queued or running.
+     */
+    val isSyncingFlow: Flow<Boolean>
+        get() = workManager
+            .getWorkInfosForUniqueWorkFlow(SyncWorker.UNIQUE_WORK_NAME)
+            .map { list ->
+                list.any { !it.state.isFinished }
+            }
+
     /**
      * Enqueues an expedited one-time sync worker job to process pending operations immediately.
      */
@@ -30,7 +44,7 @@ class SyncScheduler @Inject constructor(
             .setConstraints(constraints)
             .build()
 
-        WorkManager.getInstance(context).enqueueUniqueWork(
+        workManager.enqueueUniqueWork(
             SyncWorker.UNIQUE_WORK_NAME,
             ExistingWorkPolicy.REPLACE,
             syncRequest
