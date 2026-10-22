@@ -10,6 +10,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
 import java.io.InputStream
 import javax.inject.Inject
 
@@ -25,13 +26,25 @@ class ImageUploader @Inject constructor(
         return withContext(Dispatchers.IO) {
             try {
                 // 1. Resolve MIME type (must match what was signed on the server)
-                val mimeType = context.contentResolver.getType(imageUri) ?: "image/jpeg"
+                val mimeType = try {
+                    context.contentResolver.getType(imageUri) ?: "image/jpeg"
+                } catch (_: Exception) {
+                    "image/jpeg"
+                }
                 val mediaType = mimeType.toMediaTypeOrNull()
 
-                // 2. Read bytes from Uri
-                val inputStream: InputStream? = context.contentResolver.openInputStream(imageUri)
+                // 2. Read bytes from Uri or File
+                val inputStream: InputStream? = try {
+                    context.contentResolver.openInputStream(imageUri)
+                } catch (_: Exception) {
+                    null
+                } ?: run {
+                    val path = imageUri.path ?: imageUri.toString()
+                    val file = File(path)
+                    if (file.exists()) file.inputStream() else null
+                }
                 val bytes = inputStream?.use { it.readBytes() }
-                    ?: throw IllegalArgumentException("Could not read file from URI")
+                    ?: throw IllegalArgumentException("Could not read file from URI: $imageUri")
 
                 // 3. Create raw RequestBody (no MultipartBody.Part)
                 val requestBody = bytes.toRequestBody(mediaType)

@@ -36,6 +36,10 @@ class RemotePhotoRepository @Inject constructor() : PhotoRepository {
         TODO("Not yet implemented")
     }
 
+    override suspend fun updateCluster(cluster: Cluster): Boolean {
+        TODO("Not yet implemented")
+    }
+
     override suspend fun deletePhotos(photos: List<Photo>): Boolean {
         TODO("Not yet implemented")
     }

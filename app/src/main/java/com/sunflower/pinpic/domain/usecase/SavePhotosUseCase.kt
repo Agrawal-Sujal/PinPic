@@ -31,7 +31,7 @@ class SavePhotosUseCase @Inject constructor(
             thumbnail = updatedPhotos.firstOrNull(),
             photos = updatedPhotos
         )
-        repository.saveCluster(updatedCluster)
+        repository.updateCluster(updatedCluster)
         repository.addPhotosInCluster(updatedPhotos, updatedCluster)
         return Result.Success(Unit)
     }

@@ -3,8 +3,10 @@ package com.sunflower.pinpic.presentation.map
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.maps.model.LatLng
@@ -102,12 +104,14 @@ class MapViewModel @Inject constructor(
     }
 
 
+    @RequiresApi(Build.VERSION_CODES.O)
     fun updateCluster(cluster: Cluster) {
         viewModelScope.launch {
-            localPhotoRepository.saveCluster(cluster)
+            localPhotoRepository.updateCluster(cluster)
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     fun deletePhotos(photos: List<Photo>) {
         viewModelScope.launch {
             localPhotoRepository.deletePhotos(photos)
@@ -119,6 +123,7 @@ class MapViewModel @Inject constructor(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     fun importPhotos(
         context: Context,
         uris: List<Uri>,
@@ -210,7 +215,7 @@ class MapViewModel @Inject constructor(
                     photoCount = savedPhotos.size
                 )
 
-                localPhotoRepository.saveCluster(updatedCluster)
+                localPhotoRepository.updateCluster(updatedCluster)
                 localPhotoRepository.addPhotosInCluster(savedPhotos, updatedCluster)
                 mapClusteringSystem.addClusters(listOf(updatedCluster))
 
@@ -223,6 +228,7 @@ class MapViewModel @Inject constructor(
     }
 
 
+    @RequiresApi(Build.VERSION_CODES.O)
     fun generateDummyPoints(count: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { it.copy(isGeneratingDummies = true) }

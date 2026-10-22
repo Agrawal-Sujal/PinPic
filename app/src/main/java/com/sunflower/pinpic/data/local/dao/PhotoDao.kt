@@ -13,9 +13,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PhotoDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     @JvmSuppressWildcards
     suspend fun insertPhoto(photo: PhotoEntity): Long
+
+    @Update
+    suspend fun updatePhoto(photo: PhotoEntity)
 
     @Query("SELECT * FROM photos ORDER BY localPhotoId DESC")
     suspend fun getAllPhotos(): List<PhotoEntity>
@@ -29,8 +32,11 @@ interface PhotoDao {
     @Query("SELECT * FROM photos WHERE clusterId IS NULL ORDER BY localPhotoId DESC")
     fun getUnclusteredPhotosFlow(): Flow<List<PhotoEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     suspend fun insertCluster(cluster: ClusterEntity): Long
+
+    @Update
+    suspend fun updateCluster(cluster: ClusterEntity)
 
     @Query("SELECT * FROM clusters")
     suspend fun getAllClusters(): List<ClusterEntity>
@@ -44,6 +50,21 @@ interface PhotoDao {
     @Query("SELECT * FROM photos WHERE localPhotoId IN (:photoIds)")
     suspend fun getPhotosByIds(photoIds: List<Int>): List<PhotoEntity>
 
+    @Query("SELECT * FROM photos WHERE localPhotoId = :photoId LIMIT 1")
+    suspend fun getPhotoById(photoId: Int): PhotoEntity?
+
+    @Query("SELECT * FROM photos WHERE globalPhotoId = :globalPhotoId LIMIT 1")
+    suspend fun getPhotoByGlobalPhotoId(globalPhotoId: String): PhotoEntity?
+
+    @Query("DELETE FROM photos WHERE globalPhotoId = :globalPhotoId")
+    suspend fun deletePhotoByGlobalId(globalPhotoId: String): Int
+
+    @Query("UPDATE photos SET globalPhotoId = :globalPhotoId WHERE localPhotoId = :localPhotoId")
+    suspend fun updatePhotoGlobalId(localPhotoId: Int, globalPhotoId: String)
+
+    @Query("UPDATE photos SET s3Key = :s3Key WHERE localPhotoId = :localPhotoId")
+    suspend fun updatePhotoS3Key(localPhotoId: Int, s3Key: String)
+
     @Query("SELECT * FROM photos WHERE clusterId = :clusterId LIMIT 1")
     suspend fun getFirstPhotoForCluster(clusterId: Int): PhotoEntity?
 
@@ -52,6 +73,15 @@ interface PhotoDao {
 
     @Query("SELECT * FROM clusters WHERE localClusterId IN (:clusterIds)")
     suspend fun getClustersByIds(clusterIds: List<Int>): List<ClusterEntity>
+
+    @Query("SELECT * FROM clusters WHERE localClusterId = :clusterId LIMIT 1")
+    suspend fun getClusterById(clusterId: Int): ClusterEntity?
+
+    @Query("SELECT * FROM clusters WHERE globalClusterId = :globalClusterId LIMIT 1")
+    suspend fun getClusterByGlobalClusterId(globalClusterId: String): ClusterEntity?
+
+    @Query("UPDATE clusters SET globalClusterId = :globalClusterId WHERE localClusterId = :localClusterId")
+    suspend fun updateClusterGlobalId(localClusterId: Int, globalClusterId: String)
 
     @Delete
     suspend fun deleteClusters(clusters: List<ClusterEntity>)

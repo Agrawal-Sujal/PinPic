@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -28,6 +29,7 @@ class DataStoreManager @Inject constructor(
         val MOBILE_NUMBER = stringPreferencesKey("mobile_number")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val DEVICE_ID = stringPreferencesKey("device_id")
+        val LAST_SYNCED_OPERATION_ID = longPreferencesKey("last_synced_operation_id")
     }
 
     suspend fun saveAuthInfo(
@@ -69,6 +71,7 @@ class DataStoreManager @Inject constructor(
             prefs.remove(FULL_NAME)
             prefs.remove(MOBILE_NUMBER)
             prefs.remove(USER_ID)
+            prefs.remove(LAST_SYNCED_OPERATION_ID)
         }
     }
 
@@ -117,6 +120,16 @@ class DataStoreManager @Inject constructor(
     suspend fun saveDeviceId(deviceId: String) {
         context.dataStore.edit { prefs ->
             prefs[DEVICE_ID] = deviceId
+        }
+    }
+
+    val lastSyncedOperationIdFlow: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[LAST_SYNCED_OPERATION_ID] ?: 0L
+    }
+
+    suspend fun saveLastSyncedOperationId(operationId: Long) {
+        context.dataStore.edit { prefs ->
+            prefs[LAST_SYNCED_OPERATION_ID] = operationId
         }
     }
 }
