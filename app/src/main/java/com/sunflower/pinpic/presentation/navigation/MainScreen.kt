@@ -31,8 +31,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +63,7 @@ fun MainScreen(
     currentTab: MutableState<MainTab?>
 ) {
     val backStack = remember { mutableStateListOf<Any>(MainTab.Gallery) }
+    var isGallerySelectionMode by remember { mutableStateOf(false) }
     currentTab.value = backStack.lastOrNull { it is MainTab } as? MainTab ?: MainTab.Gallery
     Box(modifier = Modifier.fillMaxSize()) {
         NavDisplay(
@@ -79,7 +83,9 @@ fun MainScreen(
 
                 }
                 entry<MainTab.Gallery> {
-                    GalleryScreen()
+                    GalleryScreen(
+                        onSelectionModeChange = { isGallerySelectionMode = it }
+                    )
                 }
                 entry<MainTab.Chat> {
                     DummyScreen("Coming Soon")
@@ -104,7 +110,7 @@ fun MainScreen(
         )
 
         val currentEntry = backStack.lastOrNull()
-        if (currentEntry is MainTab && currentEntry != MainTab.Map) {
+        if (currentEntry is MainTab && currentEntry != MainTab.Map && !(currentEntry == MainTab.Gallery && isGallerySelectionMode)) {
             Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                 CustomFloatingBottomNavigation(
                     currentTab = currentTab.value!!,

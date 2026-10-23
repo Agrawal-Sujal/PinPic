@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sunflower.pinpic.common.Result
+import com.sunflower.pinpic.data.local.entity.Visibility
 import com.sunflower.pinpic.domain.map.MapClusteringSystem
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.domain.repository.PhotoRepository
@@ -124,6 +125,12 @@ class GalleryViewModel @Inject constructor(
         viewModelScope.launch {
             photoRepository.deletePhotos(photos)
             mapClusteringSystem.rebuild()
+        }
+    }
+
+    fun updatePhotosVisibility(photos: List<Photo>, visibility: Visibility) {
+        viewModelScope.launch {
+            photoRepository.updatePhotosVisibility(photos, visibility)
         }
     }
 

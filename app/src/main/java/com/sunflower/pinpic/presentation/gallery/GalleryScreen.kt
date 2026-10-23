@@ -15,6 +15,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,8 +32,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -44,7 +51,10 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,6 +72,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -80,14 +91,17 @@ import androidx.exifinterface.media.ExifInterface
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.sunflower.pinpic.common.MediaStoreUtils.savePhotosToDevice
+import com.sunflower.pinpic.data.local.entity.Visibility
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.presentation.common.FullScreenPhotoViewer
+import com.sunflower.pinpic.presentation.gallery.components.ChangeVisibilityBottomSheet
 import java.io.File
 
 @RequiresApi(Build.VERSION_CODES.Q)
 @Composable
 fun GalleryScreen(
     viewModel: GalleryViewModel = hiltViewModel(),
+    onSelectionModeChange: ((Boolean) -> Unit)? = null,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -124,6 +138,10 @@ fun GalleryScreen(
             onToggleDate = { viewModel.toggleDateExpansion(it) },
             onToggleLocation = { viewModel.toggleLocationExpansion(it) },
             onDeletePhotos = { viewModel.deletePhotos(it) },
+            onUpdateVisibility = { photos, visibility ->
+                viewModel.updatePhotosVisibility(photos, visibility)
+            },
+            onSelectionModeChange = onSelectionModeChange,
             onImportPhotos = { viewModel.importPhotos(it) },
             onSync = { viewModel.syncPhotos() },
             modifier = modifier,
@@ -151,15 +169,22 @@ fun GalleryContent(
     onEdit: (() -> Unit)? = null,
     showFloatingImportButton: Boolean = showHeader,
     onImportPhotos: ((List<Uri>) -> Unit)? = null,
-    onSync: (() -> Unit)? = null
+    onSync: (() -> Unit)? = null,
+    onUpdateVisibility: ((List<Photo>, Visibility) -> Unit)? = null,
+    onSelectionModeChange: ((Boolean) -> Unit)? = null
 ) {
     var selectedPhotoIndex by remember { mutableStateOf<Int?>(null) }
     val selectedPhotos = remember { mutableStateListOf<Photo>() }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showGalleryInfoDialog by remember { mutableStateOf(false) }
+    var showVisibilityBottomSheet by remember { mutableStateOf(false) }
 
     val inSelectionMode = selectedPhotos.isNotEmpty()
     val context = LocalContext.current
+
+    LaunchedEffect(inSelectionMode) {
+        onSelectionModeChange?.invoke(inSelectionMode)
+    }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments()
@@ -210,6 +235,7 @@ fun GalleryContent(
                         selectedPhotos.addAll(allPhotos)
                     },
                     onClearSelection = { selectedPhotos.clear() },
+                    onChangeVisibility = { showVisibilityBottomSheet = true },
                     onShare = { /* No-op as requested */ },
                     onInfo = { showGalleryInfoDialog = true },
                     onSaveToDevice = {
@@ -370,6 +396,28 @@ fun GalleryContent(
             )
         }
 
+        if (showVisibilityBottomSheet && selectedPhotos.isNotEmpty()) {
+            val commonVisibility = if (selectedPhotos.map { it.visibility }.distinct().size == 1) {
+                selectedPhotos.first().visibility
+            } else null
+            ChangeVisibilityBottomSheet(
+                selectedCount = selectedPhotos.size,
+                initialVisibility = commonVisibility,
+                onDismissRequest = { showVisibilityBottomSheet = false },
+                onApply = { chosenVisibility ->
+                    onUpdateVisibility?.invoke(selectedPhotos.toList(), chosenVisibility)
+                    val visibilityName = chosenVisibility.name.lowercase().replaceFirstChar { it.uppercase() }
+                    Toast.makeText(
+                        context,
+                        "Visibility changed to $visibilityName",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    selectedPhotos.clear()
+                    showVisibilityBottomSheet = false
+                }
+            )
+        }
+
         if (selectedPhotoIndex != null && allPhotos.isNotEmpty() && selectedPhotoIndex!! < allPhotos.size) {
             FullScreenPhotoViewer(
                 photos = allPhotos,
@@ -527,6 +575,7 @@ fun SelectionActionBar(
     onInfo: () -> Unit,
     onSaveToDevice: () -> Unit,
     onDelete: () -> Unit,
+    onChangeVisibility: (() -> Unit)? = null,
     onEdit: (() -> Unit)? = null
 ) {
     Row(
@@ -554,6 +603,14 @@ fun SelectionActionBar(
                 },
                 onClick = if (selectedCount == totalCount) onClearSelection else onSelectAll
             )
+            if (onChangeVisibility != null) {
+                IconButton(onClick = onChangeVisibility) {
+                    Icon(
+                        Icons.Outlined.Visibility,
+                        contentDescription = "Change Visibility"
+                    )
+                }
+            }
             if (selectedCount == 1) {
                 IconButton(onClick = onInfo) {
                     Icon(Icons.Outlined.Info, contentDescription = "Info")

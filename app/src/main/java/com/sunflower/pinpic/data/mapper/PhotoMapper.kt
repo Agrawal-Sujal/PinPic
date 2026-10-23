@@ -36,6 +36,7 @@ fun Photo.toEntity(): PhotoEntity {
         uploadedAt = uploadedAt,
         editedAt = editedAt,
         location = location?.toEntity(),
+        visibility = visibility,
         photoUri = photoUrl, // assuming photoUrl in domain maps to photoUri in entity
         lowerResolutionPhotoUri = lowerResolutionPhotoUrl
     )
@@ -52,6 +53,7 @@ fun PhotoEntity.toDomain(): Photo {
         uploadedAt = uploadedAt,
         editedAt = editedAt,
         location = location?.toDomain(),
+        visibility = visibility,
         photoUrl = photoUri,
         lowerResolutionPhotoUrl = lowerResolutionPhotoUri
     )

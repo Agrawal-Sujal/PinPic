@@ -1,6 +1,7 @@
 package com.sunflower.pinpic.domain.repository
 
 import com.sunflower.pinpic.common.Result
+import com.sunflower.pinpic.data.local.entity.Visibility
 import com.sunflower.pinpic.domain.model.Cluster
 import com.sunflower.pinpic.domain.model.Photo
 import kotlinx.coroutines.flow.Flow
@@ -12,6 +13,7 @@ interface PhotoRepository {
     suspend fun savePhoto(photo: Photo): Int
     suspend fun savePhotos(photos: List<Photo>): List<Int>
     suspend fun updatePhoto(photo: Photo): Boolean
+    suspend fun updatePhotosVisibility(photos: List<Photo>, visibility: Visibility): Boolean
     suspend fun saveCluster(cluster: Cluster): Int
     suspend fun updateCluster(cluster: Cluster): Boolean
     suspend fun deletePhotos(photos: List<Photo>): Boolean
