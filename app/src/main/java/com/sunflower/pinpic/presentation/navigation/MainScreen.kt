@@ -22,10 +22,12 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -47,12 +49,15 @@ import androidx.navigation3.ui.NavDisplay
 import com.sunflower.pinpic.presentation.gallery.GalleryScreen
 import com.sunflower.pinpic.presentation.map.MapScreen
 import com.sunflower.pinpic.presentation.profile.EditProfileScreen
+import com.sunflower.pinpic.presentation.profile.OtherUserProfileScreen
 import com.sunflower.pinpic.presentation.profile.ProfileScreen
+import com.sunflower.pinpic.presentation.search.SearchScreen
 import com.sunflower.pinpic.presentation.settings.SettingsScreen
 
 sealed class MainTab(val icon: ImageVector, val filledIcon: ImageVector, val label: String) {
     data object Map : MainTab(Icons.Outlined.LocationOn, Icons.Filled.LocationOn, "Map")
     data object Gallery : MainTab(Icons.Outlined.PhotoLibrary, Icons.Filled.PhotoLibrary, "Gallery")
+    data object Search : MainTab(Icons.Outlined.Search, Icons.Filled.Search, "Search")
     data object Chat : MainTab(Icons.Outlined.Chat, Icons.Filled.Chat, "Chat")
     data object Profile : MainTab(Icons.Outlined.Person, Icons.Filled.Person, "Profile")
 }
@@ -87,6 +92,23 @@ fun MainScreen(
                         onSelectionModeChange = { isGallerySelectionMode = it }
                     )
                 }
+                entry<MainTab.Search> {
+                    SearchScreen(
+                        onNavigateToUserProfile = { user ->
+                            backStack.add(
+                                Screen.OtherUserProfile(
+                                    userId = user.id,
+                                    username = user.username,
+                                    name = user.name,
+                                    pictureUrl = user.pictureUrl,
+                                    followerCount = user.followerCount,
+                                    followingCount = user.followingCount,
+                                    isFollowing = user.isFollowing
+                                )
+                            )
+                        }
+                    )
+                }
                 entry<MainTab.Chat> {
                     DummyScreen("Coming Soon")
                 }
@@ -103,6 +125,12 @@ fun MainScreen(
                 }
                 entry<Screen.EditProfile> {
                     EditProfileScreen(
+                        onBack = { backStack.removeLastOrNull() }
+                    )
+                }
+                entry<Screen.OtherUserProfile> { screen ->
+                    OtherUserProfileScreen(
+                        initialProfile = screen,
                         onBack = { backStack.removeLastOrNull() }
                     )
                 }
@@ -168,7 +196,11 @@ fun CustomFloatingBottomNavigation(
                 isSelected = currentTab == MainTab.Gallery,
                 onClick = { onTabSelected(MainTab.Gallery) }
             )
-
+            BottomNavItem(
+                tab = MainTab.Search,
+                isSelected = currentTab == MainTab.Search,
+                onClick = { onTabSelected(MainTab.Search) }
+            )
             BottomNavItem(
                 tab = MainTab.Chat,
                 isSelected = currentTab == MainTab.Chat,

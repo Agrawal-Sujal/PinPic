@@ -86,4 +86,79 @@ class UserRepositoryImpl @Inject constructor(
             Result.Error(e.message ?: "Unknown error")
         }
     }
+
+    override suspend fun searchUsers(query: String): Result<List<com.sunflower.pinpic.data.remote.dto.UserProfileResponse>> {
+        return try {
+            val token = dataStoreManager.jwtTokenFlow.firstOrNull()
+                ?: return Result.Error("Not logged in")
+            val response = userApi.searchUsers("Bearer $token", query)
+            if (response.isSuccessful) {
+                Result.Success(response.body() ?: emptyList())
+            } else {
+                Result.Error("Failed to search users")
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    override suspend fun getUserProfile(userId: String): Result<com.sunflower.pinpic.data.remote.dto.UserProfileResponse> {
+        return try {
+            val token = dataStoreManager.jwtTokenFlow.firstOrNull()
+                ?: return Result.Error("Not logged in")
+            val response = userApi.getUserProfile("Bearer $token", userId)
+            if (response.isSuccessful && response.body() != null) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error("Failed to load user profile")
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    override suspend fun getUserPhotos(userId: String): Result<List<com.sunflower.pinpic.data.remote.dto.UserPhotoResponse>> {
+        return try {
+            val token = dataStoreManager.jwtTokenFlow.firstOrNull()
+                ?: return Result.Error("Not logged in")
+            val response = userApi.getUserPhotos("Bearer $token", userId)
+            if (response.isSuccessful) {
+                Result.Success(response.body() ?: emptyList())
+            } else {
+                Result.Error("Failed to load user photos")
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    override suspend fun followUser(userId: String): Result<Unit> {
+        return try {
+            val token = dataStoreManager.jwtTokenFlow.firstOrNull()
+                ?: return Result.Error("Not logged in")
+            val response = userApi.followUser("Bearer $token", userId)
+            if (response.isSuccessful) {
+                Result.Success(Unit)
+            } else {
+                Result.Error("Failed to follow user")
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    override suspend fun unfollowUser(userId: String): Result<Unit> {
+        return try {
+            val token = dataStoreManager.jwtTokenFlow.firstOrNull()
+                ?: return Result.Error("Not logged in")
+            val response = userApi.unfollowUser("Bearer $token", userId)
+            if (response.isSuccessful) {
+                Result.Success(Unit)
+            } else {
+                Result.Error("Failed to unfollow user")
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Unknown error")
+        }
+    }
 }
