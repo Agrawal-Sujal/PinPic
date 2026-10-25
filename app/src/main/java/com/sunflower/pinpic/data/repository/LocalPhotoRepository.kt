@@ -9,6 +9,7 @@ import com.sunflower.pinpic.data.local.entity.EntityType
 import com.sunflower.pinpic.data.local.entity.Operations
 import com.sunflower.pinpic.data.local.entity.Status
 import com.sunflower.pinpic.data.local.entity.SyncOperationEntity
+import com.sunflower.pinpic.data.local.entity.Visibility
 import com.sunflower.pinpic.data.mapper.toDomain
 import com.sunflower.pinpic.data.mapper.toEntity
 import com.sunflower.pinpic.domain.model.Cluster
@@ -108,6 +109,30 @@ class LocalPhotoRepository @Inject constructor(
                     createdAt = now
                 )
             )
+            syncScheduler.scheduleSync()
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    override suspend fun updatePhotosVisibility(photos: List<Photo>, visibility: Visibility): Boolean {
+        if (photos.isEmpty()) return true
+        return try {
+            val now = Instant.now().toString()
+            val photoIds = photos.map { it.localPhotoId }
+            dao.updatePhotosVisibility(photoIds, visibility, now)
+            val operations = photoIds.map { id ->
+                SyncOperationEntity(
+                    entityType = EntityType.PHOTOS,
+                    entityId = id.toString(),
+                    operation = Operations.UPDATE,
+                    status = Status.PENDING,
+                    createdAt = now
+                )
+            }
+            syncOperationDao.insertOperations(operations)
             syncScheduler.scheduleSync()
             true
         } catch (_: Exception) {

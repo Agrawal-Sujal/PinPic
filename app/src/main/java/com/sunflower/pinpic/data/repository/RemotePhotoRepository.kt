@@ -1,6 +1,7 @@
 package com.sunflower.pinpic.data.repository
 
 import com.sunflower.pinpic.common.Result
+import com.sunflower.pinpic.data.local.entity.Visibility
 import com.sunflower.pinpic.domain.model.Cluster
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.domain.repository.PhotoRepository
@@ -29,6 +30,10 @@ class RemotePhotoRepository @Inject constructor() : PhotoRepository {
     }
 
     override suspend fun updatePhoto(photo: Photo): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun updatePhotosVisibility(photos: List<Photo>, visibility: Visibility): Boolean {
         TODO("Not yet implemented")
     }
 

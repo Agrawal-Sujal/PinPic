@@ -9,6 +9,7 @@ import androidx.room.Transaction
 import androidx.room.Update
 import com.sunflower.pinpic.data.local.entity.ClusterEntity
 import com.sunflower.pinpic.data.local.entity.PhotoEntity
+import com.sunflower.pinpic.data.local.entity.Visibility
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -64,6 +65,9 @@ interface PhotoDao {
 
     @Query("UPDATE photos SET s3Key = :s3Key WHERE localPhotoId = :localPhotoId")
     suspend fun updatePhotoS3Key(localPhotoId: Int, s3Key: String)
+
+    @Query("UPDATE photos SET visibility = :visibility, editedAt = :editedAt WHERE localPhotoId IN (:photoIds)")
+    suspend fun updatePhotosVisibility(photoIds: List<Int>, visibility: Visibility, editedAt: String)
 
     @Query("SELECT * FROM photos WHERE clusterId = :clusterId LIMIT 1")
     suspend fun getFirstPhotoForCluster(clusterId: Int): PhotoEntity?
