@@ -28,4 +28,13 @@ sealed class Screen {
 
     data object EditProfile : Screen()
     data object Settings : Screen()
+    data class OtherUserProfile(
+        val userId: String,
+        val username: String = "",
+        val name: String? = null,
+        val pictureUrl: String? = null,
+        val followerCount: Int = 0,
+        val followingCount: Int = 0,
+        val isFollowing: Boolean = false
+    ) : Screen()
 }
