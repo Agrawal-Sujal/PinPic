@@ -14,7 +14,11 @@ data class ClusterSyncDto(
     val globalClusterId: String? = null,
     val location: LocationSyncDto? = null,
     val thumbnailPhotoGlobalId: String? = null,
-    val photoCount: Int? = null
+    val photoCount: Int? = null,
+    val visibility: String? = null,
+    val publicPhotoCount: Int? = null,
+    val privatePhotoCount: Int? = null,
+    val friendPhotoCount: Int? = null
 )
 
 @Serializable

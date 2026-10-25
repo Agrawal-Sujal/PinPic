@@ -1,6 +1,13 @@
 package com.sunflower.pinpic.data.remote.api
 
-import com.sunflower.pinpic.data.remote.dto.*
+import com.sunflower.pinpic.data.remote.dto.ConfirmUploadRequest
+import com.sunflower.pinpic.data.remote.dto.ConfirmUploadResponse
+import com.sunflower.pinpic.data.remote.dto.InitiateUploadRequest
+import com.sunflower.pinpic.data.remote.dto.InitiateUploadResponse
+import com.sunflower.pinpic.data.remote.dto.UpdateProfileRequest
+import com.sunflower.pinpic.data.remote.dto.UserClusterResponse
+import com.sunflower.pinpic.data.remote.dto.UserPhotoResponse
+import com.sunflower.pinpic.data.remote.dto.UserProfileResponse
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -51,6 +58,12 @@ interface UserApi {
         @Header("Authorization") bearerToken: String,
         @Path("userId") userId: String
     ): Response<List<UserPhotoResponse>>
+
+    @GET("users/{userId}/clusters")
+    suspend fun getUserClusters(
+        @Header("Authorization") bearerToken: String,
+        @Path("userId") userId: String
+    ): Response<List<UserClusterResponse>>
 
     @POST("users/follow/{followingId}")
     suspend fun followUser(

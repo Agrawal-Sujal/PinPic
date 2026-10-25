@@ -37,4 +37,9 @@ sealed class Screen {
         val followingCount: Int = 0,
         val isFollowing: Boolean = false
     ) : Screen()
+    data class OtherUserMap(
+        val userId: String,
+        val username: String = "",
+        val name: String? = null
+    ) : Screen()
 }

@@ -48,6 +48,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.sunflower.pinpic.presentation.gallery.GalleryScreen
 import com.sunflower.pinpic.presentation.map.MapScreen
+import com.sunflower.pinpic.presentation.map.OtherUserMapScreen
 import com.sunflower.pinpic.presentation.profile.EditProfileScreen
 import com.sunflower.pinpic.presentation.profile.OtherUserProfileScreen
 import com.sunflower.pinpic.presentation.profile.ProfileScreen
@@ -131,6 +132,22 @@ fun MainScreen(
                 entry<Screen.OtherUserProfile> { screen ->
                     OtherUserProfileScreen(
                         initialProfile = screen,
+                        onBack = { backStack.removeLastOrNull() },
+                        onNavigateToMap = { userId, username ->
+                            backStack.add(
+                                Screen.OtherUserMap(
+                                    userId = userId,
+                                    username = username,
+                                    name = screen.name
+                                )
+                            )
+                        }
+                    )
+                }
+                entry<Screen.OtherUserMap> { screen ->
+                    OtherUserMapScreen(
+                        userId = screen.userId,
+                        username = screen.username,
                         onBack = { backStack.removeLastOrNull() }
                     )
                 }

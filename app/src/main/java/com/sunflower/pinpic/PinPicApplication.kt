@@ -3,6 +3,7 @@ package com.sunflower.pinpic
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.google.android.gms.maps.MapsInitializer
 import com.sunflower.pinpic.domain.map.MapClusteringSystem
 import com.sunflower.pinpic.worker.SyncScheduler
 import dagger.hilt.android.HiltAndroidApp
@@ -31,6 +32,11 @@ class PinPicApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        try {
+            MapsInitializer.initialize(applicationContext)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         CoroutineScope(Dispatchers.IO).launch {
             mapClusteringSystem.build()
         }

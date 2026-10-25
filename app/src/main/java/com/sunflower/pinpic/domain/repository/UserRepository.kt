@@ -17,6 +17,7 @@ interface UserRepository {
     suspend fun searchUsers(query: String): Result<List<UserProfileResponse>>
     suspend fun getUserProfile(userId: String): Result<UserProfileResponse>
     suspend fun getUserPhotos(userId: String): Result<List<com.sunflower.pinpic.data.remote.dto.UserPhotoResponse>>
+    suspend fun getUserClusters(userId: String): Result<List<com.sunflower.pinpic.data.remote.dto.UserClusterResponse>>
     suspend fun followUser(userId: String): Result<Unit>
     suspend fun unfollowUser(userId: String): Result<Unit>
 }

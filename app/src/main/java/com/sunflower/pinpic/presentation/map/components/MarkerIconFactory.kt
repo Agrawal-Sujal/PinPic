@@ -4,9 +4,9 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.util.LruCache
+import androidx.core.graphics.createBitmap
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import androidx.core.graphics.createBitmap
 
 /**
  * Pre-renders marker icons as plain Android Bitmaps instead of going through Compose's
@@ -42,13 +42,18 @@ class MarkerIconFactory(private val density: Float) {
      * on the main thread.
      */
     fun warmUp() {
-        point()
-        val representativeCounts = (1..9) +
-                (10..90 step 10) +
-                (100..900 step 100) +
-                (1_000..9_000 step 1_000) +
-                listOf(15_000, 50_000)
-        representativeCounts.forEach { cluster(it) }
+        try {
+            point()
+            val representativeCounts = (1..9) +
+                    (10..90 step 10) +
+                    (100..900 step 100) +
+                    (1_000..9_000 step 1_000) +
+                    listOf(15_000, 50_000)
+            representativeCounts.forEach { cluster(it) }
+        } catch (e: Exception) {
+            // MapsInitializer might not be ready yet if called prematurely
+            e.printStackTrace()
+        }
     }
 
     private fun bucketFor(count: Int) = when {
