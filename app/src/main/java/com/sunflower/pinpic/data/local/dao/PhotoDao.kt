@@ -3,7 +3,6 @@ package com.sunflower.pinpic.data.local.dao
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
@@ -102,12 +101,30 @@ interface PhotoDao {
     @Query("SELECT COUNT(*) FROM photos WHERE clusterId = :clusterId")
     suspend fun getPhotoCountForCluster(clusterId: Int): Int
 
+    @Query("SELECT COUNT(*) FROM photos WHERE clusterId = :clusterId AND visibility = :visibility")
+    suspend fun getPhotoCountForClusterAndVisibility(clusterId: Int, visibility: Visibility): Int
+
     @Query("DELETE FROM clusters WHERE localClusterId NOT IN (SELECT DISTINCT clusterId FROM photos WHERE clusterId IS NOT NULL)")
     suspend fun deleteEmptyClusters()
 
     @Transaction
     suspend fun insertClusterAndPhotos(cluster: ClusterEntity, photos: List<PhotoEntity>): Long {
-        val clusterId = insertCluster(cluster).toInt()
+        val publicCount = photos.count { it.visibility == Visibility.PUBLIC }
+        val friendCount = photos.count { it.visibility == Visibility.FRIENDS }
+        val privateCount = photos.count { it.visibility == Visibility.PRIVATE }
+        val visibility = when {
+            publicCount > 0 -> Visibility.PUBLIC
+            friendCount > 0 -> Visibility.FRIENDS
+            else -> Visibility.PRIVATE
+        }
+        val clusterToInsert = cluster.copy(
+            photoCount = photos.size,
+            visibility = visibility,
+            publicPhotoCount = publicCount,
+            privatePhotoCount = privateCount,
+            friendPhotoCount = friendCount
+        )
+        val clusterId = insertCluster(clusterToInsert).toInt()
         photos.forEach { 
             insertPhoto(it.copy(clusterId = clusterId))
         }
@@ -138,10 +155,31 @@ interface PhotoDao {
                     } else {
                         cluster.thumbnailId
                     }
+                    val publicCount = getPhotoCountForClusterAndVisibility(
+                        cluster.localClusterId,
+                        Visibility.PUBLIC
+                    )
+                    val friendCount = getPhotoCountForClusterAndVisibility(
+                        cluster.localClusterId,
+                        Visibility.FRIENDS
+                    )
+                    val privateCount = getPhotoCountForClusterAndVisibility(
+                        cluster.localClusterId,
+                        Visibility.PRIVATE
+                    )
+                    val visibility = when {
+                        publicCount > 0 -> Visibility.PUBLIC
+                        friendCount > 0 -> Visibility.FRIENDS
+                        else -> Visibility.PRIVATE
+                    }
                     clustersToUpdate.add(
                         cluster.copy(
                             photoCount = remainingCount,
-                            thumbnailId = newThumbnailId
+                            thumbnailId = newThumbnailId,
+                            visibility = visibility,
+                            publicPhotoCount = publicCount,
+                            privatePhotoCount = privateCount,
+                            friendPhotoCount = friendCount
                         )
                     )
                 }

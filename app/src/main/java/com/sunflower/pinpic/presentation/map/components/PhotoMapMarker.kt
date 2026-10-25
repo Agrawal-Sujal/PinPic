@@ -70,9 +70,9 @@ private val TIP_FRACTION = (HEAD_SIZE + TAIL_LENGTH) / MARKER_HEIGHT
 @Composable
 fun PhotoMapMarker(
     node: ClusterNode,
-    viewModel: MapViewModel,
+    viewModel: MapViewModel? = null,
     onClick: () -> Unit,
-    color: Color
+    color: Color = MaterialTheme.colorScheme.secondary
 ) {
     Log.d("PhotoMapMarker", node.thumbnailUrl.toString())
     val painter = rememberAsyncImagePainter(

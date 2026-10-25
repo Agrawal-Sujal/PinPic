@@ -9,13 +9,8 @@ import com.sunflower.pinpic.data.remote.dto.ConfirmUploadRequest
 import com.sunflower.pinpic.data.remote.dto.InitiateUploadRequest
 import com.sunflower.pinpic.data.remote.dto.UpdateProfileRequest
 import com.sunflower.pinpic.domain.repository.UserRepository
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 
 class UserRepositoryImpl @Inject constructor(
@@ -126,6 +121,21 @@ class UserRepositoryImpl @Inject constructor(
                 Result.Success(response.body() ?: emptyList())
             } else {
                 Result.Error("Failed to load user photos")
+            }
+        } catch (e: Exception) {
+            Result.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    override suspend fun getUserClusters(userId: String): Result<List<com.sunflower.pinpic.data.remote.dto.UserClusterResponse>> {
+        return try {
+            val token = dataStoreManager.jwtTokenFlow.firstOrNull()
+                ?: return Result.Error("Not logged in")
+            val response = userApi.getUserClusters("Bearer $token", userId)
+            if (response.isSuccessful) {
+                Result.Success(response.body() ?: emptyList())
+            } else {
+                Result.Error("Failed to load user clusters")
             }
         } catch (e: Exception) {
             Result.Error(e.message ?: "Unknown error")

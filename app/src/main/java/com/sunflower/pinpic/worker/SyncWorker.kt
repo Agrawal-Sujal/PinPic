@@ -34,13 +34,11 @@ import com.sunflower.pinpic.data.remote.dto.SyncItemDto
 import com.sunflower.pinpic.data.remote.dto.SyncPullItemDto
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.time.Duration.Companion.milliseconds
 
 @HiltWorker
 class SyncWorker @AssistedInject constructor(
@@ -146,7 +144,11 @@ class SyncWorker @AssistedInject constructor(
                                                 )
                                             },
                                             thumbnailPhotoGlobalId = thumbnailGlobalPhotoId,
-                                            photoCount = cluster.photoCount
+                                            photoCount = cluster.photoCount,
+                                            visibility = cluster.visibility.name,
+                                            publicPhotoCount = cluster.publicPhotoCount,
+                                            privatePhotoCount = cluster.privatePhotoCount,
+                                            friendPhotoCount = cluster.friendPhotoCount
                                         )
                                     )
                                 )
@@ -573,17 +575,41 @@ class SyncWorker @AssistedInject constructor(
                 isEdited = false
             )
         }
+        val clusterVisibility = op.cluster?.visibility?.let {
+            try {
+                com.sunflower.pinpic.data.local.entity.Visibility.valueOf(it)
+            } catch (_: Exception) {
+                null
+            }
+        }
+        val publicCount = op.cluster?.publicPhotoCount ?: 0
+        val privateCount = op.cluster?.privatePhotoCount ?: 0
+        val friendCount = op.cluster?.friendPhotoCount ?: 0
+        val finalVisibility = clusterVisibility ?: when {
+            publicCount > 0 -> com.sunflower.pinpic.data.local.entity.Visibility.PUBLIC
+            friendCount > 0 -> com.sunflower.pinpic.data.local.entity.Visibility.FRIENDS
+            else -> com.sunflower.pinpic.data.local.entity.Visibility.PRIVATE
+        }
+
         if (existing != null) {
             val updated = existing.copy(
                 location = loc ?: existing.location,
-                photoCount = op.cluster?.photoCount ?: existing.photoCount
+                photoCount = op.cluster?.photoCount ?: existing.photoCount,
+                visibility = finalVisibility,
+                publicPhotoCount = publicCount,
+                privatePhotoCount = privateCount,
+                friendPhotoCount = friendCount
             )
             photoDao.updateCluster(updated)
         } else {
             val newCluster = ClusterEntity(
                 globalClusterId = globalClusterId,
                 location = loc,
-                photoCount = op.cluster?.photoCount ?: 0
+                photoCount = op.cluster?.photoCount ?: 0,
+                visibility = finalVisibility,
+                publicPhotoCount = publicCount,
+                privatePhotoCount = privateCount,
+                friendPhotoCount = friendCount
             )
             photoDao.insertCluster(newCluster)
         }

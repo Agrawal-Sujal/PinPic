@@ -2,9 +2,9 @@ package com.sunflower.pinpic.data.mapper
 
 import com.sunflower.pinpic.data.local.entity.ClusterEntity
 import com.sunflower.pinpic.data.local.entity.PhotoEntity
-import com.sunflower.pinpic.data.local.entity.Location as EntityLocation
 import com.sunflower.pinpic.domain.model.Cluster
 import com.sunflower.pinpic.domain.model.Photo
+import com.sunflower.pinpic.data.local.entity.Location as EntityLocation
 import com.sunflower.pinpic.domain.model.Location as DomainLocation
 
 fun DomainLocation.toEntity(): EntityLocation {
@@ -65,7 +65,11 @@ fun Cluster.toEntity(): ClusterEntity {
         globalClusterId = globalClusterId,
         location = location?.toEntity(),
         thumbnailId = thumbnail?.localPhotoId?.takeIf { it > 0 },
-        photoCount = photoCount
+        photoCount = photoCount,
+        visibility = visibility,
+        publicPhotoCount = publicPhotoCount,
+        privatePhotoCount = privatePhotoCount,
+        friendPhotoCount = friendPhotoCount
     )
 }
 
@@ -76,6 +80,10 @@ fun ClusterEntity.toDomain(photos: List<Photo>? = null, thumbnail: Photo? = null
         photos = photos,
         location = location?.toDomain(),
         thumbnail = thumbnail,
-        photoCount = photoCount
+        photoCount = photoCount,
+        visibility = visibility,
+        publicPhotoCount = publicPhotoCount,
+        privatePhotoCount = privatePhotoCount,
+        friendPhotoCount = friendPhotoCount
     )
 }

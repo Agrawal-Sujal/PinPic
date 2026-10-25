@@ -123,6 +123,42 @@ class LocalPhotoRepository @Inject constructor(
             val now = Instant.now().toString()
             val photoIds = photos.map { it.localPhotoId }
             dao.updatePhotosVisibility(photoIds, visibility, now)
+
+            val affectedClusterIds = dao.getClusterIdsForPhotoIds(photoIds).distinct()
+            val clusterOperations = mutableListOf<SyncOperationEntity>()
+            for (clusterId in affectedClusterIds) {
+                val cluster = dao.getClusterById(clusterId) ?: continue
+                val publicCount =
+                    dao.getPhotoCountForClusterAndVisibility(clusterId, Visibility.PUBLIC)
+                val friendCount =
+                    dao.getPhotoCountForClusterAndVisibility(clusterId, Visibility.FRIENDS)
+                val privateCount =
+                    dao.getPhotoCountForClusterAndVisibility(clusterId, Visibility.PRIVATE)
+                val newVisibility = when {
+                    publicCount > 0 -> Visibility.PUBLIC
+                    friendCount > 0 -> Visibility.FRIENDS
+                    else -> Visibility.PRIVATE
+                }
+                dao.updateCluster(
+                    cluster.copy(
+                        visibility = newVisibility,
+                        publicPhotoCount = publicCount,
+                        privatePhotoCount = privateCount,
+                        friendPhotoCount = friendCount,
+                        photoCount = publicCount + friendCount + privateCount
+                    )
+                )
+                clusterOperations.add(
+                    SyncOperationEntity(
+                        entityType = EntityType.CLUSTER,
+                        entityId = clusterId.toString(),
+                        operation = Operations.UPDATE,
+                        status = Status.PENDING,
+                        createdAt = now
+                    )
+                )
+            }
+
             val operations = photoIds.map { id ->
                 SyncOperationEntity(
                     entityType = EntityType.PHOTOS,
@@ -131,7 +167,7 @@ class LocalPhotoRepository @Inject constructor(
                     status = Status.PENDING,
                     createdAt = now
                 )
-            }
+            } + clusterOperations
             syncOperationDao.insertOperations(operations)
             syncScheduler.scheduleSync()
             true

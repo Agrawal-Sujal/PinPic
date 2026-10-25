@@ -12,5 +12,17 @@ data class ClusterEntity(
     @Embedded
     val location: Location? = null,
     val thumbnailId: Int? = null,
-    val photoCount: Int = 0
-)
+    val photoCount: Int = 0,
+    val visibility: Visibility = Visibility.PRIVATE,
+    val publicPhotoCount: Int = 0,
+    val privatePhotoCount: Int = 0,
+    val friendPhotoCount: Int = 0
+) {
+    fun calculateVisibility(): Visibility {
+        return when {
+            publicPhotoCount > 0 -> Visibility.PUBLIC
+            friendPhotoCount > 0 -> Visibility.FRIENDS
+            else -> Visibility.PRIVATE
+        }
+    }
+}
