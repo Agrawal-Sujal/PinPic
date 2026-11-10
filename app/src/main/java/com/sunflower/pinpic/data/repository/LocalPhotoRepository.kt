@@ -218,7 +218,9 @@ class LocalPhotoRepository @Inject constructor(
     override suspend fun deletePhotos(photos: List<Photo>): Boolean {
         return try {
             val now = Instant.now().toString()
-            val operations = photos.map { photo ->
+            val cleanupResult = dao.deletePhotosAndCleanupClusters(photos.map { it.toEntity() })
+
+            val photoOperations = photos.map { photo ->
                 SyncOperationEntity(
                     entityType = EntityType.PHOTOS,
                     entityId = photo.localPhotoId.toString(),
@@ -227,8 +229,28 @@ class LocalPhotoRepository @Inject constructor(
                     createdAt = now
                 )
             }
-            dao.deletePhotosAndCleanupClusters(photos.map { it.toEntity() })
-            syncOperationDao.insertOperations(operations)
+
+            val clusterDeleteOperations = cleanupResult.softDeletedClusterIds.map { clusterId ->
+                SyncOperationEntity(
+                    entityType = EntityType.CLUSTER,
+                    entityId = clusterId.toString(),
+                    operation = Operations.DELETE,
+                    status = Status.PENDING,
+                    createdAt = now
+                )
+            }
+
+            val clusterUpdateOperations = cleanupResult.updatedClusterIds.map { clusterId ->
+                SyncOperationEntity(
+                    entityType = EntityType.CLUSTER,
+                    entityId = clusterId.toString(),
+                    operation = Operations.UPDATE,
+                    status = Status.PENDING,
+                    createdAt = now
+                )
+            }
+
+            syncOperationDao.insertOperations(photoOperations + clusterDeleteOperations + clusterUpdateOperations)
             syncScheduler.scheduleSync()
             true
         } catch (_: Exception) {

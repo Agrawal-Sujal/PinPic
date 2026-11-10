@@ -16,7 +16,8 @@ data class ClusterEntity(
     val visibility: Visibility = Visibility.PRIVATE,
     val publicPhotoCount: Int = 0,
     val privatePhotoCount: Int = 0,
-    val friendPhotoCount: Int = 0
+    val friendPhotoCount: Int = 0,
+    val isDeleted: Boolean = false
 ) {
     fun calculateVisibility(): Visibility {
         return when {

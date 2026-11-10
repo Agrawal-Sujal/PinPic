@@ -2,6 +2,8 @@ package com.sunflower.pinpic.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.sunflower.pinpic.data.local.AppDatabase
 import com.sunflower.pinpic.data.local.dao.PhotoDao
 import com.sunflower.pinpic.data.local.dao.SyncOperationDao
@@ -16,8 +18,14 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
 
-    @Provides
+    private val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE photos ADD COLUMN isDeleted INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE clusters ADD COLUMN isDeleted INTEGER NOT NULL DEFAULT 0")
+        }
+    }
 
+    @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
         return Room.databaseBuilder(
@@ -25,6 +33,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "pinpic_db"
         )
+            .addMigrations(MIGRATION_7_8)
             .fallbackToDestructiveMigration(true)
             .build()
     }

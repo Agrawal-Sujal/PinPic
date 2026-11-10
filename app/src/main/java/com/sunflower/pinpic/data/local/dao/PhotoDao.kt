@@ -11,6 +11,11 @@ import com.sunflower.pinpic.data.local.entity.PhotoEntity
 import com.sunflower.pinpic.data.local.entity.Visibility
 import kotlinx.coroutines.flow.Flow
 
+data class ClusterCleanupResult(
+    val softDeletedClusterIds: List<Int> = emptyList(),
+    val updatedClusterIds: List<Int> = emptyList()
+)
+
 @Dao
 interface PhotoDao {
     @Insert
@@ -20,16 +25,16 @@ interface PhotoDao {
     @Update
     suspend fun updatePhoto(photo: PhotoEntity)
 
-    @Query("SELECT * FROM photos ORDER BY localPhotoId DESC")
+    @Query("SELECT * FROM photos WHERE isDeleted = 0 ORDER BY localPhotoId DESC")
     suspend fun getAllPhotos(): List<PhotoEntity>
 
-    @Query("SELECT * FROM photos ORDER BY localPhotoId DESC")
+    @Query("SELECT * FROM photos WHERE isDeleted = 0 ORDER BY localPhotoId DESC")
     fun getAllPhotosFlow(): Flow<List<PhotoEntity>>
 
-    @Query("SELECT * FROM photos WHERE clusterId IS NULL ORDER BY localPhotoId DESC")
+    @Query("SELECT * FROM photos WHERE clusterId IS NULL AND isDeleted = 0 ORDER BY localPhotoId DESC")
     suspend fun getUnclusteredPhotos(): List<PhotoEntity>
 
-    @Query("SELECT * FROM photos WHERE clusterId IS NULL ORDER BY localPhotoId DESC")
+    @Query("SELECT * FROM photos WHERE clusterId IS NULL AND isDeleted = 0 ORDER BY localPhotoId DESC")
     fun getUnclusteredPhotosFlow(): Flow<List<PhotoEntity>>
 
     @Insert
@@ -38,16 +43,16 @@ interface PhotoDao {
     @Update
     suspend fun updateCluster(cluster: ClusterEntity)
 
-    @Query("SELECT * FROM clusters")
+    @Query("SELECT * FROM clusters WHERE isDeleted = 0")
     suspend fun getAllClusters(): List<ClusterEntity>
 
-    @Query("SELECT * FROM clusters")
+    @Query("SELECT * FROM clusters WHERE isDeleted = 0")
     fun getAllClustersFlow(): Flow<List<ClusterEntity>>
 
-    @Query("SELECT * FROM photos WHERE clusterId IN (:clusterIds)")
+    @Query("SELECT * FROM photos WHERE clusterId IN (:clusterIds) AND isDeleted = 0")
     suspend fun getPhotosByClusterIds(clusterIds: List<Int>): List<PhotoEntity>
 
-    @Query("SELECT * FROM photos WHERE localPhotoId IN (:photoIds)")
+    @Query("SELECT * FROM photos WHERE localPhotoId IN (:photoIds) AND isDeleted = 0")
     suspend fun getPhotosByIds(photoIds: List<Int>): List<PhotoEntity>
 
     @Query("SELECT * FROM photos WHERE localPhotoId = :photoId LIMIT 1")
@@ -59,6 +64,15 @@ interface PhotoDao {
     @Query("DELETE FROM photos WHERE globalPhotoId = :globalPhotoId")
     suspend fun deletePhotoByGlobalId(globalPhotoId: String): Int
 
+    @Query("DELETE FROM photos WHERE localPhotoId = :photoId")
+    suspend fun purgePhotoById(photoId: Int): Int
+
+    @Query("DELETE FROM photos WHERE localPhotoId IN (:photoIds)")
+    suspend fun purgePhotosByIds(photoIds: List<Int>): Int
+
+    @Query("UPDATE photos SET isDeleted = 1 WHERE localPhotoId IN (:photoIds)")
+    suspend fun softDeletePhotos(photoIds: List<Int>): Int
+
     @Query("UPDATE photos SET globalPhotoId = :globalPhotoId WHERE localPhotoId = :localPhotoId")
     suspend fun updatePhotoGlobalId(localPhotoId: Int, globalPhotoId: String)
 
@@ -68,7 +82,7 @@ interface PhotoDao {
     @Query("UPDATE photos SET visibility = :visibility, editedAt = :editedAt WHERE localPhotoId IN (:photoIds)")
     suspend fun updatePhotosVisibility(photoIds: List<Int>, visibility: Visibility, editedAt: String)
 
-    @Query("SELECT * FROM photos WHERE clusterId = :clusterId LIMIT 1")
+    @Query("SELECT * FROM photos WHERE clusterId = :clusterId AND isDeleted = 0 LIMIT 1")
     suspend fun getFirstPhotoForCluster(clusterId: Int): PhotoEntity?
 
     @Delete
@@ -89,6 +103,15 @@ interface PhotoDao {
     @Delete
     suspend fun deleteClusters(clusters: List<ClusterEntity>)
 
+    @Query("DELETE FROM clusters WHERE localClusterId = :clusterId")
+    suspend fun purgeClusterById(clusterId: Int): Int
+
+    @Query("DELETE FROM clusters WHERE localClusterId IN (:clusterIds)")
+    suspend fun purgeClustersByIds(clusterIds: List<Int>): Int
+
+    @Query("UPDATE clusters SET isDeleted = 1 WHERE localClusterId IN (:clusterIds)")
+    suspend fun softDeleteClusters(clusterIds: List<Int>): Int
+
     @Update
     suspend fun updateClusters(clusters: List<ClusterEntity>)
 
@@ -98,14 +121,11 @@ interface PhotoDao {
     @Query("SELECT DISTINCT clusterId FROM photos WHERE localPhotoId IN (:photoIds) AND clusterId IS NOT NULL")
     suspend fun getClusterIdsForPhotoIds(photoIds: List<Int>): List<Int>
 
-    @Query("SELECT COUNT(*) FROM photos WHERE clusterId = :clusterId")
+    @Query("SELECT COUNT(*) FROM photos WHERE clusterId = :clusterId AND isDeleted = 0")
     suspend fun getPhotoCountForCluster(clusterId: Int): Int
 
-    @Query("SELECT COUNT(*) FROM photos WHERE clusterId = :clusterId AND visibility = :visibility")
+    @Query("SELECT COUNT(*) FROM photos WHERE clusterId = :clusterId AND visibility = :visibility AND isDeleted = 0")
     suspend fun getPhotoCountForClusterAndVisibility(clusterId: Int, visibility: Visibility): Int
-
-    @Query("DELETE FROM clusters WHERE localClusterId NOT IN (SELECT DISTINCT clusterId FROM photos WHERE clusterId IS NOT NULL)")
-    suspend fun deleteEmptyClusters()
 
     @Transaction
     suspend fun insertClusterAndPhotos(cluster: ClusterEntity, photos: List<PhotoEntity>): Long {
@@ -132,23 +152,27 @@ interface PhotoDao {
     }
 
     @Transaction
-    suspend fun deletePhotosAndCleanupClusters(photos: List<PhotoEntity>) {
-        if (photos.isEmpty()) return
+    suspend fun deletePhotosAndCleanupClusters(photos: List<PhotoEntity>): ClusterCleanupResult {
+        if (photos.isEmpty()) return ClusterCleanupResult()
         val photoIds = photos.map { it.localPhotoId }
 
         val affectedClusterIds = getClusterIdsForPhotoIds(photoIds)
 
-        deletePhotos(photos)
+        // Soft delete the photos
+        softDeletePhotos(photoIds)
+
+        val softDeletedClusterIds = mutableListOf<Int>()
+        val updatedClusterIds = mutableListOf<Int>()
 
         if (affectedClusterIds.isNotEmpty()) {
             val affectedClusters = getClustersByIds(affectedClusterIds)
-            val clustersToDelete = mutableListOf<ClusterEntity>()
+            val clustersToSoftDelete = mutableListOf<Int>()
             val clustersToUpdate = mutableListOf<ClusterEntity>()
 
             for (cluster in affectedClusters) {
                 val remainingCount = getPhotoCountForCluster(cluster.localClusterId)
                 if (remainingCount == 0) {
-                    clustersToDelete.add(cluster)
+                    clustersToSoftDelete.add(cluster.localClusterId)
                 } else {
                     val newThumbnailId = if (cluster.thumbnailId in photoIds || cluster.thumbnailId == null) {
                         getFirstPhotoForCluster(cluster.localClusterId)?.localPhotoId
@@ -182,17 +206,61 @@ interface PhotoDao {
                             friendPhotoCount = friendCount
                         )
                     )
+                    updatedClusterIds.add(cluster.localClusterId)
                 }
             }
 
-            if (clustersToDelete.isNotEmpty()) {
-                deleteClusters(clustersToDelete)
+            if (clustersToSoftDelete.isNotEmpty()) {
+                softDeleteClusters(clustersToSoftDelete)
+                softDeletedClusterIds.addAll(clustersToSoftDelete)
             }
             if (clustersToUpdate.isNotEmpty()) {
                 updateClusters(clustersToUpdate)
             }
         }
 
-        deleteEmptyClusters()
+        return ClusterCleanupResult(
+            softDeletedClusterIds = softDeletedClusterIds,
+            updatedClusterIds = updatedClusterIds
+        )
+    }
+
+    @Transaction
+    suspend fun purgePhotoAndCleanupClusters(photo: PhotoEntity) {
+        val clusterId = photo.clusterId
+        purgePhotoById(photo.localPhotoId)
+        if (clusterId != null) {
+            val cluster = getClusterById(clusterId)
+            if (cluster != null) {
+                val remainingCount = getPhotoCountForCluster(clusterId)
+                if (remainingCount == 0) {
+                    purgeClusterById(clusterId)
+                } else {
+                    val newThumbnailId = if (cluster.thumbnailId == photo.localPhotoId || cluster.thumbnailId == null) {
+                        getFirstPhotoForCluster(clusterId)?.localPhotoId
+                    } else {
+                        cluster.thumbnailId
+                    }
+                    val publicCount = getPhotoCountForClusterAndVisibility(clusterId, Visibility.PUBLIC)
+                    val friendCount = getPhotoCountForClusterAndVisibility(clusterId, Visibility.FRIENDS)
+                    val privateCount = getPhotoCountForClusterAndVisibility(clusterId, Visibility.PRIVATE)
+                    val visibility = when {
+                        publicCount > 0 -> Visibility.PUBLIC
+                        friendCount > 0 -> Visibility.FRIENDS
+                        else -> Visibility.PRIVATE
+                    }
+                    updateCluster(
+                        cluster.copy(
+                            photoCount = remainingCount,
+                            thumbnailId = newThumbnailId,
+                            visibility = visibility,
+                            publicPhotoCount = publicCount,
+                            privatePhotoCount = privateCount,
+                            friendPhotoCount = friendCount
+                        )
+                    )
+                }
+            }
+        }
     }
 }
