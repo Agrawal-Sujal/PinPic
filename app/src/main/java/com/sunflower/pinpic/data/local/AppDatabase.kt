@@ -14,7 +14,7 @@ import com.sunflower.pinpic.data.local.entity.SyncOperationEntity
         ClusterEntity::class,
         SyncOperationEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

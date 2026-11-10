@@ -117,7 +117,7 @@ class SyncWorker @AssistedInject constructor(
                         EntityType.CLUSTER -> {
                             if (op.operation == Operations.ADD || op.operation == Operations.UPDATE) {
                                 val cluster = photoDao.getClusterById(localId)
-                                if (cluster == null) {
+                                if (cluster == null || cluster.isDeleted) {
                                     Log.d(TAG, "Cluster $localId was deleted locally. Ignoring ADD/UPDATE.")
                                     syncOperationDao.updateStatus(op.operationId, Status.COMPLETED)
                                     handledAnyLocally = true
@@ -157,6 +157,7 @@ class SyncWorker @AssistedInject constructor(
                                 val globalClusterId = cluster?.globalClusterId
                                 if (globalClusterId.isNullOrBlank()) {
                                     Log.d(TAG, "Cluster $localId was never synced to server. Marking DELETE as completed.")
+                                    photoDao.purgeClusterById(localId)
                                     syncOperationDao.updateStatus(op.operationId, Status.COMPLETED)
                                     handledAnyLocally = true
                                     continue
@@ -179,7 +180,7 @@ class SyncWorker @AssistedInject constructor(
                         EntityType.PHOTOS -> {
                             if (op.operation == Operations.ADD || op.operation == Operations.UPDATE) {
                                 val photo = photoDao.getPhotoById(localId)
-                                if (photo == null) {
+                                if (photo == null || photo.isDeleted) {
                                     Log.d(TAG, "Photo $localId was deleted locally. Ignoring ADD/UPDATE.")
                                     syncOperationDao.updateStatus(op.operationId, Status.COMPLETED)
                                     handledAnyLocally = true
@@ -255,6 +256,19 @@ class SyncWorker @AssistedInject constructor(
                                 val globalPhotoId = photo?.globalPhotoId
                                 if (globalPhotoId.isNullOrBlank()) {
                                     Log.d(TAG, "Photo $localId was never synced to server. Marking DELETE as completed.")
+                                    photo?.photoUri?.let { uriStr ->
+                                        try {
+                                            val f = File(uriStr)
+                                            if (f.exists()) f.delete()
+                                        } catch (_: Exception) {}
+                                    }
+                                    photo?.lowerResolutionPhotoUri?.let { thumbStr ->
+                                        try {
+                                            val f = File(thumbStr)
+                                            if (f.exists()) f.delete()
+                                        } catch (_: Exception) {}
+                                    }
+                                    photoDao.purgePhotoById(localId)
                                     syncOperationDao.updateStatus(op.operationId, Status.COMPLETED)
                                     handledAnyLocally = true
                                     continue
@@ -301,15 +315,42 @@ class SyncWorker @AssistedInject constructor(
                 val results = syncResponse.body()!!.results
                 Log.d(TAG, "Received batch response with ${results.size} result items.")
 
+                val opMap = pendingBatch.associateBy { it.operationId }
+
                 for (res in results) {
                     if (res.status == "SUCCESS") {
                         val localEntityId = res.localEntityId.toIntOrNull()
-                        if (res.entityType.equals("CLUSTER", ignoreCase = true) && localEntityId != null && res.globalId != null) {
-                            photoDao.updateClusterGlobalId(localEntityId, res.globalId)
-                            Log.d(TAG, "Updated cluster $localEntityId with globalClusterId=${res.globalId}")
-                        } else if (res.entityType.equals("PHOTOS", ignoreCase = true) && localEntityId != null && res.globalId != null) {
-                            photoDao.updatePhotoGlobalId(localEntityId, res.globalId)
-                            Log.d(TAG, "Updated photo $localEntityId with globalPhotoId=${res.globalId}")
+                        val correspondingOp = opMap[res.operationId]
+
+                        if (correspondingOp?.operation == Operations.DELETE) {
+                            if (res.entityType.equals("PHOTOS", ignoreCase = true) && localEntityId != null) {
+                                val photo = photoDao.getPhotoById(localEntityId)
+                                photo?.photoUri?.let { uriStr ->
+                                    try {
+                                        val f = File(uriStr)
+                                        if (f.exists()) f.delete()
+                                    } catch (_: Exception) {}
+                                }
+                                photo?.lowerResolutionPhotoUri?.let { thumbStr ->
+                                    try {
+                                        val f = File(thumbStr)
+                                        if (f.exists()) f.delete()
+                                    } catch (_: Exception) {}
+                                }
+                                photoDao.purgePhotoById(localEntityId)
+                                Log.d(TAG, "Purged soft-deleted photo $localEntityId after successful cloud sync")
+                            } else if (res.entityType.equals("CLUSTER", ignoreCase = true) && localEntityId != null) {
+                                photoDao.purgeClusterById(localEntityId)
+                                Log.d(TAG, "Purged soft-deleted cluster $localEntityId after successful cloud sync")
+                            }
+                        } else {
+                            if (res.entityType.equals("CLUSTER", ignoreCase = true) && localEntityId != null && res.globalId != null) {
+                                photoDao.updateClusterGlobalId(localEntityId, res.globalId)
+                                Log.d(TAG, "Updated cluster $localEntityId with globalClusterId=${res.globalId}")
+                            } else if (res.entityType.equals("PHOTOS", ignoreCase = true) && localEntityId != null && res.globalId != null) {
+                                photoDao.updatePhotoGlobalId(localEntityId, res.globalId)
+                                Log.d(TAG, "Updated photo $localEntityId with globalPhotoId=${res.globalId}")
+                            }
                         }
                         syncOperationDao.updateStatus(res.operationId, Status.COMPLETED)
                     } else {
@@ -535,7 +576,7 @@ class SyncWorker @AssistedInject constructor(
         } catch (_: Exception) {}
 
         // 2. Delete photo from database and cleanup clusters
-        photoDao.deletePhotosAndCleanupClusters(listOf(photo))
+        photoDao.purgePhotoAndCleanupClusters(photo)
         Log.i(TAG, "Deleted pulled photo $globalPhotoId from local database")
     }
 
@@ -618,7 +659,7 @@ class SyncWorker @AssistedInject constructor(
     private suspend fun handlePullClusterDelete(op: SyncPullItemDto) {
         val globalClusterId = op.entityId
         val existing = photoDao.getClusterByGlobalClusterId(globalClusterId) ?: return
-        photoDao.deleteClusters(listOf(existing))
+        photoDao.purgeClusterById(existing.localClusterId)
     }
 
     companion object {
