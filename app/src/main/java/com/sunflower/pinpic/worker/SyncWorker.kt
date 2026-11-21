@@ -29,9 +29,7 @@ import com.sunflower.pinpic.data.remote.dto.ClusterSyncDto
 import com.sunflower.pinpic.data.remote.dto.InitiateUploadRequest
 import com.sunflower.pinpic.data.remote.dto.LocationSyncDto
 import com.sunflower.pinpic.data.remote.dto.PhotoSyncDto
-import com.sunflower.pinpic.data.remote.dto.SyncBatchRequest
-import com.sunflower.pinpic.data.remote.dto.SyncItemDto
-import com.sunflower.pinpic.data.remote.dto.SyncPullItemDto
+import com.sunflower.pinpic.data.remote.dto.SyncPushRequest
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
@@ -91,9 +89,8 @@ class SyncWorker @AssistedInject constructor(
             val deviceId = dataStoreManager.deviceIdFlow.first() ?: ""
 
             // 1. Push Phase: push local changes to the cloud
-            val batchSize = 1
+            val batchSize = 20
             while (true) {
-//                delay(5000.milliseconds)
                 val pendingBatch = syncOperationDao.getPendingOperationsBatch(batchSize)
                 if (pendingBatch.isEmpty()) {
                     Log.i(TAG, "All pending push operations have been processed.")
@@ -101,7 +98,9 @@ class SyncWorker @AssistedInject constructor(
                 }
                 Log.d(TAG, "Fetched batch of ${pendingBatch.size} pending operations.")
 
-                val itemsToSend = mutableListOf<SyncItemDto>()
+                val clustersToSend = mutableListOf<ClusterSyncDto>()
+                val photosToSend = mutableListOf<PhotoSyncDto>()
+                val processedOps = mutableListOf<com.sunflower.pinpic.data.local.entity.SyncOperationEntity>()
                 var handledAnyLocally = false
 
                 for (op in pendingBatch) {
@@ -124,34 +123,36 @@ class SyncWorker @AssistedInject constructor(
                                     continue
                                 }
 
+                                var globalClusterId = cluster.globalClusterId
+                                if (globalClusterId.isNullOrBlank()) {
+                                    globalClusterId = java.util.UUID.randomUUID().toString()
+                                    photoDao.updateClusterGlobalId(localId, globalClusterId)
+                                }
+
                                 val thumbnailGlobalPhotoId = cluster.thumbnailId?.let { thumbId ->
                                     photoDao.getPhotoById(thumbId)?.globalPhotoId
                                 }
 
-                                itemsToSend.add(
-                                    SyncItemDto(
-                                        operationId = op.operationId,
-                                        entityType = "CLUSTER",
-                                        operation = op.operation.name,
-                                        localEntityId = op.entityId,
-                                        cluster = ClusterSyncDto(
-                                            globalClusterId = cluster.globalClusterId,
-                                            location = cluster.location?.let {
-                                                LocationSyncDto(
-                                                    latitude = it.latitude,
-                                                    longitude = it.longitude,
-                                                    locationName = it.locationName
-                                                )
-                                            },
-                                            thumbnailPhotoGlobalId = thumbnailGlobalPhotoId,
-                                            photoCount = cluster.photoCount,
-                                            visibility = cluster.visibility.name,
-                                            publicPhotoCount = cluster.publicPhotoCount,
-                                            privatePhotoCount = cluster.privatePhotoCount,
-                                            friendPhotoCount = cluster.friendPhotoCount
-                                        )
+                                clustersToSend.add(
+                                    ClusterSyncDto(
+                                        globalClusterId = globalClusterId,
+                                        location = cluster.location?.let {
+                                            LocationSyncDto(
+                                                latitude = it.latitude,
+                                                longitude = it.longitude,
+                                                locationName = it.locationName
+                                            )
+                                        },
+                                        thumbnailPhotoGlobalId = thumbnailGlobalPhotoId,
+                                        photoCount = cluster.photoCount,
+                                        visibility = cluster.visibility.name,
+                                        publicPhotoCount = cluster.publicPhotoCount,
+                                        privatePhotoCount = cluster.privatePhotoCount,
+                                        friendPhotoCount = cluster.friendPhotoCount,
+                                        isDeleted = false
                                     )
                                 )
+                                processedOps.add(op)
                             } else if (op.operation == Operations.DELETE) {
                                 val cluster = photoDao.getClusterById(localId)
                                 val globalClusterId = cluster?.globalClusterId
@@ -163,17 +164,13 @@ class SyncWorker @AssistedInject constructor(
                                     continue
                                 }
 
-                                itemsToSend.add(
-                                    SyncItemDto(
-                                        operationId = op.operationId,
-                                        entityType = "CLUSTER",
-                                        operation = op.operation.name,
-                                        localEntityId = op.entityId,
-                                        cluster = ClusterSyncDto(
-                                            globalClusterId = globalClusterId
-                                        )
+                                clustersToSend.add(
+                                    ClusterSyncDto(
+                                        globalClusterId = globalClusterId,
+                                        isDeleted = true
                                     )
                                 )
+                                processedOps.add(op)
                             }
                         }
 
@@ -185,6 +182,12 @@ class SyncWorker @AssistedInject constructor(
                                     syncOperationDao.updateStatus(op.operationId, Status.COMPLETED)
                                     handledAnyLocally = true
                                     continue
+                                }
+
+                                var globalPhotoId = photo.globalPhotoId
+                                if (globalPhotoId.isNullOrBlank()) {
+                                    globalPhotoId = java.util.UUID.randomUUID().toString()
+                                    photoDao.updatePhotoGlobalId(localId, globalPhotoId)
                                 }
 
                                 // 1. Ensure photo is uploaded to S3 first
@@ -227,30 +230,26 @@ class SyncWorker @AssistedInject constructor(
                                     photoDao.getClusterById(clusterLocalId)?.globalClusterId
                                 }
 
-                                itemsToSend.add(
-                                    SyncItemDto(
-                                        operationId = op.operationId,
-                                        entityType = "PHOTOS",
-                                        operation = op.operation.name,
-                                        localEntityId = op.entityId,
-                                        photo = PhotoSyncDto(
-                                            globalPhotoId = photo.globalPhotoId,
-                                            globalClusterId = clusterGlobalId,
-                                            name = photo.photoName,
-                                            s3Key = s3Key,
-                                            takenAt = photo.takenAt,
-                                            editedAt = photo.editedAt,
-                                            location = photo.location?.let {
-                                                LocationSyncDto(
-                                                    latitude = it.latitude,
-                                                    longitude = it.longitude,
-                                                    locationName = it.locationName
-                                                )
-                                            },
-                                            visibility = photo.visibility.name
-                                        )
+                                photosToSend.add(
+                                    PhotoSyncDto(
+                                        globalPhotoId = globalPhotoId,
+                                        globalClusterId = clusterGlobalId,
+                                        name = photo.photoName,
+                                        s3Key = s3Key,
+                                        takenAt = photo.takenAt,
+                                        editedAt = photo.editedAt,
+                                        location = photo.location?.let {
+                                            LocationSyncDto(
+                                                latitude = it.latitude,
+                                                longitude = it.longitude,
+                                                locationName = it.locationName
+                                            )
+                                        },
+                                        visibility = photo.visibility.name,
+                                        isDeleted = false
                                     )
                                 )
+                                processedOps.add(op)
                             } else if (op.operation == Operations.DELETE) {
                                 val photo = photoDao.getPhotoById(localId)
                                 val globalPhotoId = photo?.globalPhotoId
@@ -274,23 +273,19 @@ class SyncWorker @AssistedInject constructor(
                                     continue
                                 }
 
-                                itemsToSend.add(
-                                    SyncItemDto(
-                                        operationId = op.operationId,
-                                        entityType = "PHOTOS",
-                                        operation = op.operation.name,
-                                        localEntityId = op.entityId,
-                                        photo = PhotoSyncDto(
-                                            globalPhotoId = globalPhotoId
-                                        )
+                                photosToSend.add(
+                                    PhotoSyncDto(
+                                        globalPhotoId = globalPhotoId,
+                                        isDeleted = true
                                     )
                                 )
+                                processedOps.add(op)
                             }
                         }
                     }
                 }
 
-                if (itemsToSend.isEmpty()) {
+                if (clustersToSend.isEmpty() && photosToSend.isEmpty()) {
                     if (!handledAnyLocally) {
                         Log.w(TAG, "No items in the current batch could be prepared. Will retry later.")
                         return Result.retry()
@@ -298,70 +293,53 @@ class SyncWorker @AssistedInject constructor(
                     continue
                 }
 
-                Log.d(TAG, "Dispatching batch of ${itemsToSend.size} items to /api/sync/batch...")
-                val syncResponse = syncApi.syncBatch(
+                Log.d(TAG, "Dispatching ${clustersToSend.size} clusters and ${photosToSend.size} photos to /api/sync/push...")
+                val pushResponse = syncApi.pushMutations(
                     authHeader,
-                    SyncBatchRequest(
+                    SyncPushRequest(
                         deviceId = deviceId,
-                        operations = itemsToSend
+                        clusters = clustersToSend,
+                        photos = photosToSend
                     )
                 )
 
-                if (!syncResponse.isSuccessful || syncResponse.body() == null) {
-                    Log.e(TAG, "Batch sync HTTP failed with code: ${syncResponse.code()}")
+                if (!pushResponse.isSuccessful || pushResponse.body() == null) {
+                    Log.e(TAG, "Push mutations HTTP failed with code: ${pushResponse.code()}")
                     return Result.retry()
                 }
 
-                val results = syncResponse.body()!!.results
-                Log.d(TAG, "Received batch response with ${results.size} result items.")
-
-                val opMap = pendingBatch.associateBy { it.operationId }
-
-                for (res in results) {
-                    if (res.status == "SUCCESS") {
-                        val localEntityId = res.localEntityId.toIntOrNull()
-                        val correspondingOp = opMap[res.operationId]
-
-                        if (correspondingOp?.operation == Operations.DELETE) {
-                            if (res.entityType.equals("PHOTOS", ignoreCase = true) && localEntityId != null) {
-                                val photo = photoDao.getPhotoById(localEntityId)
-                                photo?.photoUri?.let { uriStr ->
-                                    try {
-                                        val f = File(uriStr)
-                                        if (f.exists()) f.delete()
-                                    } catch (_: Exception) {}
-                                }
-                                photo?.lowerResolutionPhotoUri?.let { thumbStr ->
-                                    try {
-                                        val f = File(thumbStr)
-                                        if (f.exists()) f.delete()
-                                    } catch (_: Exception) {}
-                                }
-                                photoDao.purgePhotoById(localEntityId)
-                                Log.d(TAG, "Purged soft-deleted photo $localEntityId after successful cloud sync")
-                            } else if (res.entityType.equals("CLUSTER", ignoreCase = true) && localEntityId != null) {
-                                photoDao.purgeClusterById(localEntityId)
-                                Log.d(TAG, "Purged soft-deleted cluster $localEntityId after successful cloud sync")
+                Log.d(TAG, "Batch mutations pushed successfully.")
+                for (op in processedOps) {
+                    val localEntityId = op.entityId.toIntOrNull()
+                    if (op.operation == Operations.DELETE && localEntityId != null) {
+                        if (op.entityType == EntityType.PHOTOS) {
+                            val photo = photoDao.getPhotoById(localEntityId)
+                            photo?.photoUri?.let { uriStr ->
+                                try {
+                                    val f = File(uriStr)
+                                    if (f.exists()) f.delete()
+                                } catch (_: Exception) {}
                             }
-                        } else {
-                            if (res.entityType.equals("CLUSTER", ignoreCase = true) && localEntityId != null && res.globalId != null) {
-                                photoDao.updateClusterGlobalId(localEntityId, res.globalId)
-                                Log.d(TAG, "Updated cluster $localEntityId with globalClusterId=${res.globalId}")
-                            } else if (res.entityType.equals("PHOTOS", ignoreCase = true) && localEntityId != null && res.globalId != null) {
-                                photoDao.updatePhotoGlobalId(localEntityId, res.globalId)
-                                Log.d(TAG, "Updated photo $localEntityId with globalPhotoId=${res.globalId}")
+                            photo?.lowerResolutionPhotoUri?.let { thumbStr ->
+                                try {
+                                    val f = File(thumbStr)
+                                    if (f.exists()) f.delete()
+                                } catch (_: Exception) {}
                             }
+                            photoDao.purgePhotoById(localEntityId)
+                            Log.d(TAG, "Purged soft-deleted photo $localEntityId after successful push")
+                        } else if (op.entityType == EntityType.CLUSTER) {
+                            photoDao.purgeClusterById(localEntityId)
+                            Log.d(TAG, "Purged soft-deleted cluster $localEntityId after successful push")
                         }
-                        syncOperationDao.updateStatus(res.operationId, Status.COMPLETED)
-                    } else {
-                        Log.w(TAG, "Server reported failure for operation ${res.operationId}: ${res.errorMessage}")
                     }
+                    syncOperationDao.updateStatus(op.operationId, Status.COMPLETED)
                 }
             }
 
             // 2. Pull Phase: pull changes made by other devices from the cloud
             Log.i(TAG, "Push phase completed. Starting pull sync phase...")
-            pullChangesFromCloud(authHeader, deviceId)
+            pullDeltasFromCloud(authHeader, deviceId)
 
             Log.i(TAG, "Sync operation finished successfully.")
             Result.success()
@@ -371,295 +349,204 @@ class SyncWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun pullChangesFromCloud(authHeader: String, deviceId: String) {
-        val pullBatchSize = 20
+    private suspend fun pullDeltasFromCloud(authHeader: String, deviceId: String) {
+        val pullBatchSize = 100
         val picturesDir = (applicationContext.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
             ?: applicationContext.filesDir).apply { mkdirs() }
         val defaultDateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val userId = dataStoreManager.userIdFlow.first() ?: "unknown"
 
         while (true) {
-            val currentLastOpId = dataStoreManager.lastSyncedOperationIdFlow.first()
-            Log.d(TAG, "Pulling changes from cloud since operationId=$currentLastOpId with batchSize=$pullBatchSize")
+            val currentCursor = dataStoreManager.lastSyncedRevisionFlow.first()
+            Log.d(TAG, "Pulling deltas from cloud since revision=$currentCursor with batchSize=$pullBatchSize")
 
             val pullResponse = try {
-                syncApi.pullChanges(
+                syncApi.pullDeltas(
                     bearerToken = authHeader,
-                    lastOperationId = currentLastOpId,
-                    batchSize = pullBatchSize,
+                    cursor = currentCursor,
+                    limit = pullBatchSize,
                     deviceId = deviceId
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Network or server error during pull sync: ${e.message}", e)
+                Log.e(TAG, "Delta pull request failed: ${e.message}", e)
                 break
             }
 
             if (!pullResponse.isSuccessful || pullResponse.body() == null) {
-                Log.e(TAG, "Pull sync request failed with HTTP ${pullResponse.code()}")
+                Log.e(TAG, "Delta pull returned HTTP ${pullResponse.code()}")
                 break
             }
 
             val body = pullResponse.body()!!
-            val operations = body.operations
-            if (operations.isEmpty()) {
-                Log.i(TAG, "No new changes to pull from cloud.")
+            if (body.resetRequired) {
+                Log.w(TAG, "Server requested sync reset. Resetting local cursor...")
+                dataStoreManager.saveLastSyncedRevision(0L)
+                return
+            }
+
+            val clusters = body.clusters
+            val photos = body.photos
+
+            if (clusters.isEmpty() && photos.isEmpty()) {
+                Log.i(TAG, "No new deltas from cloud.")
                 break
             }
 
-            Log.i(TAG, "Received ${operations.size} operations from cloud to apply locally.")
-            var latestProcessedOpId = currentLastOpId
+            Log.i(TAG, "Applying ${clusters.size} cluster deltas and ${photos.size} photo deltas.")
 
-            for (op in operations) {
+            // 1. Process Clusters
+            for (c in clusters) {
                 try {
-                    when (op.entityType.uppercase()) {
-                        "PHOTOS" -> {
-                            when (op.operation.uppercase()) {
-                                "ADD" -> {
-                                    handlePullAddPhoto(op, picturesDir, defaultDateFormatter, userId)
-                                }
-                                "DELETE" -> {
-                                    handlePullDeletePhoto(op)
-                                }
-                                "UPDATE" -> {
-                                    handlePullUpdatePhoto(op)
-                                }
-                            }
+                    val globalClusterId = c.clusterId
+                    val existing = photoDao.getClusterByGlobalClusterId(globalClusterId)
+
+                    if (c.isDeleted) {
+                        if (existing != null) {
+                            photoDao.purgeClusterById(existing.localClusterId)
                         }
-                        "CLUSTER" -> {
-                            when (op.operation.uppercase()) {
-                                "ADD", "UPDATE" -> {
-                                    handlePullClusterAddOrUpdate(op)
-                                }
-                                "DELETE" -> {
-                                    handlePullClusterDelete(op)
-                                }
+                    } else if (c.isEcho) {
+                        // ECHO: only advance revision
+                        photoDao.updateClusterRevision(globalClusterId, c.revision)
+                    } else {
+                        // External change: upsert
+                        val clusterData = ClusterEntity(
+                            localClusterId = existing?.localClusterId ?: 0,
+                            globalClusterId = globalClusterId,
+                            location = c.location?.let {
+                                com.sunflower.pinpic.data.local.entity.Location(
+                                    latitude = it.latitude ?: 0.0,
+                                    longitude = it.longitude ?: 0.0,
+                                    locationName = it.locationName ?: "Unknown Location",
+                                    isEdited = false
+                                )
+                            },
+                            photoCount = c.photoCount ?: 0,
+                            visibility = c.visibility?.let {
+                                try { com.sunflower.pinpic.data.local.entity.Visibility.valueOf(it) }
+                                catch (_: Exception) { com.sunflower.pinpic.data.local.entity.Visibility.PRIVATE }
+                            } ?: com.sunflower.pinpic.data.local.entity.Visibility.PRIVATE,
+                            publicPhotoCount = c.publicPhotoCount ?: 0,
+                            privatePhotoCount = c.privatePhotoCount ?: 0,
+                            friendPhotoCount = c.friendPhotoCount ?: 0,
+                            revision = c.revision,
+                            isDeleted = false
+                        )
+                        if (existing != null) {
+                            photoDao.updateClusters(listOf(clusterData))
+                        } else {
+                            photoDao.insertCluster(clusterData)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error applying cluster delta ${c.clusterId}: ${e.message}", e)
+                }
+            }
+
+            // 2. Process Photos
+            for (p in photos) {
+                try {
+                    val globalPhotoId = p.photoId
+                    val existing = photoDao.getPhotoByGlobalPhotoId(globalPhotoId)
+
+                    if (p.isDeleted) {
+                        if (existing != null) {
+                            existing.photoUri.let { uriStr ->
+                                try { val f = File(uriStr); if (f.exists()) f.delete() } catch (_: Exception) {}
+                            }
+                            existing.lowerResolutionPhotoUri?.let { thumbStr ->
+                                try { val f = File(thumbStr); if (f.exists()) f.delete() } catch (_: Exception) {}
+                            }
+                            photoDao.purgePhotoById(existing.localPhotoId)
+                        }
+                    } else if (p.isEcho) {
+                        // ECHO: only update revision, NEVER overwrite local file paths!
+                        photoDao.updatePhotoRevision(globalPhotoId, p.revision)
+                    } else {
+                        // External change: resolve cluster
+                        var clusterLocalId: Int? = null
+                        p.clusterId?.let { cId ->
+                            clusterLocalId = photoDao.getClusterByGlobalClusterId(cId)?.localClusterId
+                        }
+
+                        if (existing != null) {
+                            // Update existing record, PRESERVE local photoUri!
+                            val updated = existing.copy(
+                                photoName = p.name ?: existing.photoName,
+                                clusterId = clusterLocalId ?: existing.clusterId,
+                                s3Key = p.s3Key ?: existing.s3Key,
+                                location = p.location?.let {
+                                    com.sunflower.pinpic.data.local.entity.Location(
+                                        latitude = it.latitude ?: 0.0,
+                                        longitude = it.longitude ?: 0.0,
+                                        locationName = it.locationName ?: "Unknown Location",
+                                        isEdited = false
+                                    )
+                                } ?: existing.location,
+                                visibility = p.visibility?.let {
+                                    try { com.sunflower.pinpic.data.local.entity.Visibility.valueOf(it) }
+                                    catch (_: Exception) { existing.visibility }
+                                } ?: existing.visibility,
+                                revision = p.revision
+                            )
+                            photoDao.updatePhoto(updated)
+                        } else {
+                            // New photo from another device: download image binary
+                            val safeName = (p.name ?: "photo").replace("[^a-zA-Z0-9._-]".toRegex(), "_")
+                            val fileName = "PinPic-Pull-${globalPhotoId.take(8)}-$safeName.jpg"
+                            val destFile = File(picturesDir, fileName)
+
+                            p.downloadUrl?.let { url ->
+                                imageDownloader.downloadPhotoToFile(url, destFile)
+                            }
+
+                            val currentDateStr = defaultDateFormatter.format(Date())
+                            val newPhoto = PhotoEntity(
+                                globalPhotoId = globalPhotoId,
+                                photoName = p.name ?: "Untitled",
+                                photoUri = destFile.absolutePath,
+                                s3Key = p.s3Key,
+                                takenAt = p.takenAt ?: currentDateStr,
+                                editedAt = p.editedAt ?: currentDateStr,
+                                location = p.location?.let {
+                                    com.sunflower.pinpic.data.local.entity.Location(
+                                        latitude = it.latitude ?: 0.0,
+                                        longitude = it.longitude ?: 0.0,
+                                        locationName = it.locationName ?: "Unknown Location",
+                                        isEdited = false
+                                    )
+                                },
+                                visibility = p.visibility?.let {
+                                    try { com.sunflower.pinpic.data.local.entity.Visibility.valueOf(it) }
+                                    catch (_: Exception) { com.sunflower.pinpic.data.local.entity.Visibility.PRIVATE }
+                                } ?: com.sunflower.pinpic.data.local.entity.Visibility.PRIVATE,
+                                userId = userId,
+                                clusterId = clusterLocalId,
+                                revision = p.revision
+                            )
+
+                            val insertedId = photoDao.insertPhoto(newPhoto).toInt()
+                            if (destFile.exists()) {
+                                try {
+                                    ImageUtils.generateAndSaveThumbnail(
+                                        context = applicationContext,
+                                        originalUriString = destFile.absolutePath,
+                                        photoId = insertedId.toLong()
+                                    )
+                                } catch (_: Exception) {}
                             }
                         }
                     }
-                    latestProcessedOpId = maxOf(latestProcessedOpId, op.operationId)
-                    dataStoreManager.saveLastSyncedOperationId(latestProcessedOpId)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error applying pulled operation ${op.operationId}: ${e.message}", e)
+                    Log.e(TAG, "Error applying photo delta ${p.photoId}: ${e.message}", e)
                 }
             }
 
-            // If fewer items were returned than requested and hasMore is false, we are caught up
-            if (!body.hasMore && operations.size < pullBatchSize) {
+            dataStoreManager.saveLastSyncedRevision(body.nextCursor)
+
+            if (!body.hasMore) {
                 break
             }
         }
-    }
-
-    private suspend fun handlePullAddPhoto(
-        op: SyncPullItemDto,
-        picturesDir: File,
-        defaultDateFormatter: SimpleDateFormat,
-        userId: String
-    ) {
-        val globalPhotoId = op.entityId
-        // Check if photo already exists locally
-        val existing = photoDao.getPhotoByGlobalPhotoId(globalPhotoId)
-        if (existing != null) {
-            Log.d(TAG, "Photo with globalPhotoId=$globalPhotoId already exists locally. Skipping add.")
-            return
-        }
-
-        // Prepare destination file in private storage
-        val safeName = (op.photo?.name ?: "photo").replace("[^a-zA-Z0-9._-]".toRegex(), "_")
-        val fileName = "PinPic-Pull-${globalPhotoId.take(8)}-$safeName.jpg"
-        val destFile = File(picturesDir, fileName)
-
-        // Download the photo if downloadUrl is available
-        val downloadUrl = op.downloadUrl
-        if (!downloadUrl.isNullOrBlank()) {
-            val downloaded = imageDownloader.downloadPhotoToFile(downloadUrl, destFile)
-            if (!downloaded) {
-                Log.w(TAG, "Failed to download photo file for $globalPhotoId, proceeding to save record.")
-            }
-        } else {
-            Log.w(TAG, "No downloadUrl provided for photo $globalPhotoId")
-        }
-
-        // Resolve cluster if provided
-        var clusterLocalId: Int? = null
-        val globalClusterId = op.photo?.globalClusterId
-        if (!globalClusterId.isNullOrBlank()) {
-            val localCluster = photoDao.getClusterByGlobalClusterId(globalClusterId)
-            if (localCluster != null) {
-                clusterLocalId = localCluster.localClusterId
-            } else {
-                val newCluster = ClusterEntity(
-                    globalClusterId = globalClusterId,
-                    location = op.photo.location?.let {
-                        com.sunflower.pinpic.data.local.entity.Location(
-                            latitude = it.latitude ?: 0.0,
-                            longitude = it.longitude ?: 0.0,
-                            locationName = it.locationName ?: "Unknown Location",
-                            isEdited = false
-                        )
-                    },
-                    photoCount = 1
-                )
-                clusterLocalId = photoDao.insertCluster(newCluster).toInt()
-            }
-        }
-
-        val currentDateStr = defaultDateFormatter.format(Date())
-        val photoEntity = PhotoEntity(
-            globalPhotoId = globalPhotoId,
-            photoName = op.photo?.name ?: "Untitled",
-            photoUri = destFile.absolutePath,
-            s3Key = op.photo?.s3Key,
-            takenAt = op.photo?.takenAt ?: currentDateStr,
-            editedAt = op.photo?.editedAt ?: currentDateStr,
-            location = op.photo?.location?.let {
-                com.sunflower.pinpic.data.local.entity.Location(
-                    latitude = it.latitude ?: 0.0,
-                    longitude = it.longitude ?: 0.0,
-                    locationName = it.locationName ?: "Unknown Location",
-                    isEdited = false
-                )
-            },
-            visibility = op.photo?.visibility?.let {
-                try {
-                    com.sunflower.pinpic.data.local.entity.Visibility.valueOf(it)
-                } catch (_: Exception) {
-                    com.sunflower.pinpic.data.local.entity.Visibility.PRIVATE
-                }
-            } ?: com.sunflower.pinpic.data.local.entity.Visibility.PRIVATE,
-            userId = userId,
-            clusterId = clusterLocalId
-        )
-
-        val insertedLocalId = photoDao.insertPhoto(photoEntity).toInt()
-        Log.i(TAG, "Inserted pulled photo $globalPhotoId as localPhotoId=$insertedLocalId")
-
-        // Generate thumbnail if file exists
-        if (destFile.exists()) {
-            try {
-                ImageUtils.generateAndSaveThumbnail(
-                    context = applicationContext,
-                    originalUriString = destFile.absolutePath,
-                    photoId = insertedLocalId.toLong()
-                )
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to generate thumbnail for pulled photo $insertedLocalId", e)
-            }
-        }
-    }
-
-    private suspend fun handlePullDeletePhoto(op: SyncPullItemDto) {
-        val globalPhotoId = op.entityId
-        val photo = photoDao.getPhotoByGlobalPhotoId(globalPhotoId)
-        if (photo == null) {
-            Log.d(TAG, "Photo with globalPhotoId=$globalPhotoId not found locally. Nothing to delete.")
-            return
-        }
-
-        // 1. Delete photo from private storage
-        try {
-            val file = File(photo.photoUri)
-            if (file.exists()) {
-                val deleted = file.delete()
-                Log.d(TAG, "Deleted local file ${photo.photoUri}: $deleted")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to delete local photo file ${photo.photoUri}", e)
-        }
-
-        // Delete thumbnail file if present
-        try {
-            photo.lowerResolutionPhotoUri?.let { thumbPath ->
-                val thumbFile = File(thumbPath)
-                if (thumbFile.exists()) thumbFile.delete()
-            }
-        } catch (_: Exception) {}
-
-        // 2. Delete photo from database and cleanup clusters
-        photoDao.purgePhotoAndCleanupClusters(photo)
-        Log.i(TAG, "Deleted pulled photo $globalPhotoId from local database")
-    }
-
-    private suspend fun handlePullUpdatePhoto(op: SyncPullItemDto) {
-        val globalPhotoId = op.entityId
-        val photo = photoDao.getPhotoByGlobalPhotoId(globalPhotoId) ?: return
-        val updated = photo.copy(
-            photoName = op.photo?.name ?: photo.photoName,
-            editedAt = op.photo?.editedAt ?: photo.editedAt,
-            location = op.photo?.location?.let {
-                com.sunflower.pinpic.data.local.entity.Location(
-                    latitude = it.latitude ?: 0.0,
-                    longitude = it.longitude ?: 0.0,
-                    locationName = it.locationName ?: "Unknown Location",
-                    isEdited = false
-                )
-            } ?: photo.location,
-            visibility = op.photo?.visibility?.let {
-                try {
-                    com.sunflower.pinpic.data.local.entity.Visibility.valueOf(it)
-                } catch (_: Exception) {
-                    photo.visibility
-                }
-            } ?: photo.visibility
-        )
-        photoDao.updatePhoto(updated)
-    }
-
-    private suspend fun handlePullClusterAddOrUpdate(op: SyncPullItemDto) {
-        val globalClusterId = op.entityId
-        val existing = photoDao.getClusterByGlobalClusterId(globalClusterId)
-        val loc = op.cluster?.location?.let {
-            com.sunflower.pinpic.data.local.entity.Location(
-                latitude = it.latitude ?: 0.0,
-                longitude = it.longitude ?: 0.0,
-                locationName = it.locationName ?: "Unknown Location",
-                isEdited = false
-            )
-        }
-        val clusterVisibility = op.cluster?.visibility?.let {
-            try {
-                com.sunflower.pinpic.data.local.entity.Visibility.valueOf(it)
-            } catch (_: Exception) {
-                null
-            }
-        }
-        val publicCount = op.cluster?.publicPhotoCount ?: 0
-        val privateCount = op.cluster?.privatePhotoCount ?: 0
-        val friendCount = op.cluster?.friendPhotoCount ?: 0
-        val finalVisibility = clusterVisibility ?: when {
-            publicCount > 0 -> com.sunflower.pinpic.data.local.entity.Visibility.PUBLIC
-            friendCount > 0 -> com.sunflower.pinpic.data.local.entity.Visibility.FRIENDS
-            else -> com.sunflower.pinpic.data.local.entity.Visibility.PRIVATE
-        }
-
-        if (existing != null) {
-            val updated = existing.copy(
-                location = loc ?: existing.location,
-                photoCount = op.cluster?.photoCount ?: existing.photoCount,
-                visibility = finalVisibility,
-                publicPhotoCount = publicCount,
-                privatePhotoCount = privateCount,
-                friendPhotoCount = friendCount
-            )
-            photoDao.updateCluster(updated)
-        } else {
-            val newCluster = ClusterEntity(
-                globalClusterId = globalClusterId,
-                location = loc,
-                photoCount = op.cluster?.photoCount ?: 0,
-                visibility = finalVisibility,
-                publicPhotoCount = publicCount,
-                privatePhotoCount = privateCount,
-                friendPhotoCount = friendCount
-            )
-            photoDao.insertCluster(newCluster)
-        }
-    }
-
-    private suspend fun handlePullClusterDelete(op: SyncPullItemDto) {
-        val globalClusterId = op.entityId
-        val existing = photoDao.getClusterByGlobalClusterId(globalClusterId) ?: return
-        photoDao.purgeClusterById(existing.localClusterId)
     }
 
     companion object {

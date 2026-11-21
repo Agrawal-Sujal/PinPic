@@ -25,5 +25,6 @@ data class PhotoEntity(
     val visibility: Visibility = Visibility.PRIVATE,
     val photoUri: String,
     val lowerResolutionPhotoUri: String? = null,
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    val revision: Long = 0L
 )
