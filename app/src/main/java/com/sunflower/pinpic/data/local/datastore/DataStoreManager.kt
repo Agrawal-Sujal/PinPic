@@ -30,6 +30,7 @@ class DataStoreManager @Inject constructor(
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val DEVICE_ID = stringPreferencesKey("device_id")
         val LAST_SYNCED_OPERATION_ID = longPreferencesKey("last_synced_operation_id")
+        val LAST_SYNCED_REVISION = longPreferencesKey("last_synced_revision")
     }
 
     suspend fun saveAuthInfo(
@@ -130,6 +131,16 @@ class DataStoreManager @Inject constructor(
     suspend fun saveLastSyncedOperationId(operationId: Long) {
         context.dataStore.edit { prefs ->
             prefs[LAST_SYNCED_OPERATION_ID] = operationId
+        }
+    }
+
+    val lastSyncedRevisionFlow: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[LAST_SYNCED_REVISION] ?: 0L
+    }
+
+    suspend fun saveLastSyncedRevision(revision: Long) {
+        context.dataStore.edit { prefs ->
+            prefs[LAST_SYNCED_REVISION] = revision
         }
     }
 }

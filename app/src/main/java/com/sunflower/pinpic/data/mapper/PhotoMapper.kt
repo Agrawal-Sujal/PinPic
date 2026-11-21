@@ -28,7 +28,7 @@ fun EntityLocation.toDomain(): DomainLocation {
 fun Photo.toEntity(): PhotoEntity {
     return PhotoEntity(
         localPhotoId = localPhotoId,
-        globalPhotoId = globalPhotoId,
+        globalPhotoId = globalPhotoId ?: java.util.UUID.randomUUID().toString(),
         clusterId = clusterId,
         userId = userId,
         photoName = photoName,
@@ -62,7 +62,7 @@ fun PhotoEntity.toDomain(): Photo {
 fun Cluster.toEntity(): ClusterEntity {
     return ClusterEntity(
         localClusterId = localClusterId,
-        globalClusterId = globalClusterId,
+        globalClusterId = globalClusterId ?: java.util.UUID.randomUUID().toString(),
         location = location?.toEntity(),
         thumbnailId = thumbnail?.localPhotoId?.takeIf { it > 0 },
         photoCount = photoCount,

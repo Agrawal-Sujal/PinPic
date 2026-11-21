@@ -76,6 +76,12 @@ interface PhotoDao {
     @Query("UPDATE photos SET globalPhotoId = :globalPhotoId WHERE localPhotoId = :localPhotoId")
     suspend fun updatePhotoGlobalId(localPhotoId: Int, globalPhotoId: String)
 
+    @Query("UPDATE photos SET revision = :rev WHERE globalPhotoId = :globalPhotoId")
+    suspend fun updatePhotoRevision(globalPhotoId: String, rev: Long)
+
+    @Query("UPDATE clusters SET revision = :rev WHERE globalClusterId = :globalClusterId")
+    suspend fun updateClusterRevision(globalClusterId: String, rev: Long)
+
     @Query("UPDATE photos SET s3Key = :s3Key WHERE localPhotoId = :localPhotoId")
     suspend fun updatePhotoS3Key(localPhotoId: Int, s3Key: String)
 

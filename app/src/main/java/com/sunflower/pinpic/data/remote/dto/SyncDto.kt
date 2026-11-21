@@ -18,7 +18,9 @@ data class ClusterSyncDto(
     val visibility: String? = null,
     val publicPhotoCount: Int? = null,
     val privatePhotoCount: Int? = null,
-    val friendPhotoCount: Int? = null
+    val friendPhotoCount: Int? = null,
+    val isDeleted: Boolean? = false,
+    val revision: Long? = null
 )
 
 @Serializable
@@ -31,63 +33,62 @@ data class PhotoSyncDto(
     val editedAt: String? = null,
     val location: LocationSyncDto? = null,
     val visibility: String? = null,
+    val size: Long? = null,
+    val isDeleted: Boolean? = false,
+    val revision: Long? = null
+)
+
+@Serializable
+data class PhotoDeltaDto(
+    val photoId: String,
+    val revision: Long = 0L,
+    val isEcho: Boolean = false,
+    val isDeleted: Boolean = false,
+    val clusterId: String? = null,
+    val name: String? = null,
+    val s3Key: String? = null,
+    val downloadUrl: String? = null,
+    val takenAt: String? = null,
+    val editedAt: String? = null,
+    val location: LocationSyncDto? = null,
+    val visibility: String? = null,
     val size: Long? = null
 )
 
 @Serializable
-data class SyncItemDto(
-    val operationId: String,
-    val entityType: String,
-    val operation: String,
-    val localEntityId: String,
-    val cluster: ClusterSyncDto? = null,
-    val photo: PhotoSyncDto? = null
+data class ClusterDeltaDto(
+    val clusterId: String,
+    val revision: Long = 0L,
+    val isEcho: Boolean = false,
+    val isDeleted: Boolean = false,
+    val location: LocationSyncDto? = null,
+    val thumbnailPhotoId: String? = null,
+    val photoCount: Int? = null,
+    val visibility: String? = null,
+    val publicPhotoCount: Int? = null,
+    val privatePhotoCount: Int? = null,
+    val friendPhotoCount: Int? = null
 )
 
 @Serializable
-data class SyncBatchRequest(
+data class SyncPushRequest(
     val deviceId: String,
-    val operations: List<SyncItemDto>
+    val clusters: List<ClusterSyncDto>? = null,
+    val photos: List<PhotoSyncDto>? = null
 )
 
 @Serializable
-data class SyncResultDto(
-    val operationId: String,
-    val localEntityId: String,
-    val entityType: String,
-    val globalId: String? = null,
+data class SyncPushResponse(
     val status: String,
-    val errorMessage: String? = null
+    val message: String? = null
 )
 
 @Serializable
-data class SyncBatchResponse(
-    val results: List<SyncResultDto>
-)
-
-@Serializable
-data class SyncPullRequest(
-    val deviceId: String? = null,
-    val lastOperationId: Long? = 0L,
-    val batchSize: Int? = 50
-)
-
-@Serializable
-data class SyncPullItemDto(
-    val operationId: Long,
-    val entityType: String,
-    val operation: String,
-    val entityId: String,
-    val deviceId: String? = null,
-    val photo: PhotoSyncDto? = null,
-    val cluster: ClusterSyncDto? = null,
-    val downloadUrl: String? = null
-)
-
-@Serializable
-data class SyncPullResponse(
-    val operations: List<SyncPullItemDto> = emptyList(),
-    val lastOperationId: Long? = null,
-    val hasMore: Boolean = false
+data class DeltaSyncPullResponse(
+    val clusters: List<ClusterDeltaDto> = emptyList(),
+    val photos: List<PhotoDeltaDto> = emptyList(),
+    val nextCursor: Long = 0L,
+    val hasMore: Boolean = false,
+    val resetRequired: Boolean = false
 )
 
