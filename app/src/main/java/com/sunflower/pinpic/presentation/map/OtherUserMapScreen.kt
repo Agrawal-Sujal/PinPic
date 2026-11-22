@@ -20,17 +20,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -68,7 +65,6 @@ import com.sunflower.pinpic.domain.model.Cluster
 import com.sunflower.pinpic.domain.model.Photo
 import com.sunflower.pinpic.presentation.map.components.MarkerIconFactory
 import com.sunflower.pinpic.presentation.map.components.PhotoMapMarker
-import com.sunflower.pinpic.presentation.map.components.SelectedClusterGallerySheet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -349,39 +345,18 @@ fun OtherUserMapScreen(
             )
         }
 
-        // Cluster Gallery Modal Bottom Sheet
+        // Cluster Gallery Dialog
         if (!selectedClusterPhotos.isNullOrEmpty()) {
-            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-            ModalBottomSheet(
-                onDismissRequest = {
+            com.sunflower.pinpic.presentation.map.components.ClusterPhotoDialog(
+                photos = selectedClusterPhotos!!,
+                photoCount = selectedClusterPhotos!!.size,
+                locationName = selectedCluster?.location?.locationName,
+                onDismiss = {
                     selectedClusterPhotos = null
                     selectedCluster = null
                     isClusterClick = false
-                },
-                sheetState = sheetState,
-                containerColor = MaterialTheme.colorScheme.background,
-                dragHandle = { BottomSheetDefaults.DragHandle() },
-                modifier = Modifier.fillMaxSize()
-            ) {
-                SelectedClusterGallerySheet(
-                    photos = selectedClusterPhotos!!,
-                    cluster = selectedCluster,
-                    showThumbnailAndLocation = !isClusterClick,
-                    onClose = {
-                        coroutineScope.launch {
-                            sheetState.hide()
-                        }.invokeOnCompletion {
-                            if (!sheetState.isVisible) {
-                                selectedClusterPhotos = null
-                                selectedCluster = null
-                                isClusterClick = false
-                            }
-                        }
-                    },
-                    onEditCluster = null, // Read-only: cluster editing disabled
-                    onDeletePhotos = {}    // Read-only: photo deletion disabled
-                )
-            }
+                }
+            )
         }
     }
 }

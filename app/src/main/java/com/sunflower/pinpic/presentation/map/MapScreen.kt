@@ -472,16 +472,16 @@ fun MapScreen(
                                 viewModel = viewModel,
                                 onClick = {
                                     coroutineScope.launch {
-//                                        val (photos, cluster) = viewModel.getPhotosAndClusterForNode(node.id)
-//                                        if (photos.isNotEmpty()) {
-//                                            showGallerySheet = false
-//                                            addPhotoMode = AddPhotoMode.NONE
-//                                            val photo = photos.first()
-//                                            selectedClusterPhotos = photos
-//                                            selectedCluster = cluster
-//                                            isClusterClick = false
-//
-//                                        }
+                                        val photos = viewModel.getPhotosForNode(node.id)
+                                        if (photos.isNotEmpty()) {
+                                            showGallerySheet = false
+                                            addPhotoMode = AddPhotoMode.NONE
+                                            selectedClusterPhotos = photos
+                                            selectedCluster = com.sunflower.pinpic.domain.model.Cluster(
+                                                localClusterId = node.id.toInt()
+                                            )
+                                            isClusterClick = false
+                                        }
                                     }
                                 },
                                 color = MaterialTheme.colorScheme.secondary
@@ -677,46 +677,16 @@ fun MapScreen(
     }
 
     if (!selectedClusterPhotos.isNullOrEmpty()) {
-        val sheetState =
-            androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        androidx.compose.material3.ModalBottomSheet(
-            onDismissRequest = {
+        com.sunflower.pinpic.presentation.map.components.ClusterPhotoDialog(
+            photos = selectedClusterPhotos!!,
+            photoCount = selectedClusterPhotos!!.size,
+            locationName = selectedCluster?.location?.locationName,
+            onDismiss = {
                 selectedClusterPhotos = null
+                selectedCluster = null
                 isClusterClick = false
-            },
-            sheetState = sheetState,
-            dragHandle = null,
-            modifier = Modifier.fillMaxSize()
-        ) {
-            com.sunflower.pinpic.presentation.map.components.SelectedClusterGallerySheet(
-                photos = selectedClusterPhotos!!,
-                cluster = selectedCluster,
-                showThumbnailAndLocation = !isClusterClick,
-                onClose = {
-                    coroutineScope.launch {
-                        sheetState.hide()
-                    }.invokeOnCompletion {
-                        if (!sheetState.isVisible) {
-                            selectedClusterPhotos = null
-                            selectedCluster = null
-                            isClusterClick = false
-                        }
-                    }
-                },
-                onEditCluster = { updatedCluster ->
-                    viewModel.updateCluster(updatedCluster)
-                    selectedCluster = updatedCluster
-                },
-                onDeletePhotos = { photos ->
-                    viewModel.deletePhotos(photos)
-                    selectedClusterPhotos = selectedClusterPhotos?.filter { it !in photos }
-                    if (selectedClusterPhotos.isNullOrEmpty()) {
-                        selectedClusterPhotos = null
-                        selectedCluster = null
-                    }
-                }
-            )
-        }
+            }
+        )
     }
 
     if (showDatePicker) {
